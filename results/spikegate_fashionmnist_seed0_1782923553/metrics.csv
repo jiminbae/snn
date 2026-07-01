@@ -1,2 +1,0 @@
-epoch,train_loss,train_ce_loss,train_spike_cost,train_raw_spike_rate,train_gated_spike_rate,train_time_cost,train_acc,test_acc,test_spike_rate,raw_spike_rate,gated_spike_rate,prefix_spike_rate,effective_timestep,hard_effective_timestep,energy_proxy,prefix_energy_proxy
-1,2.304444193840027,2.3000041246414185,0.055879658088088036,0.05682382546365261,0.05493549443781376,0.9703332483768463,21.09375,31.25,0.046487050130963326,0.047987546771764755,0.046487050130963326,0.04876440204679966,7.762619972229004,8.0,0.36086130379662684,0.3901152163743973
