@@ -39,6 +39,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gumbel-tau", type=float, default=1.0)
     parser.add_argument("--gate-threshold", type=float, default=0.5)
     parser.add_argument("--monotonic-gate", action="store_true")
+    parser.add_argument("--hard-prefix-eval", action="store_true")
+    parser.add_argument("--reg-warmup-epochs", type=int, default=5)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
@@ -120,8 +122,8 @@ def train_one_epoch(
                 args.model,
                 output,
                 target,
-                args.lambda_spike,
-                args.eta_time,
+                args.lambda_spike * min(1.0, epoch / max(1, args.reg_warmup_epochs)),
+                args.eta_time * min(1.0, epoch / max(1, args.reg_warmup_epochs)),
                 args.tmax,
             )
 
@@ -150,7 +152,18 @@ def evaluate(
     args: argparse.Namespace,
 ) -> dict[str, float]:
     model.eval()
-    meters = {name: AverageMeter() for name in ["acc", "spike_rate", "effective_timestep", "hard_effective_timestep"]}
+    meters = {
+        name: AverageMeter()
+        for name in [
+            "acc",
+            "raw_spike_rate",
+            "gated_spike_rate",
+            "spike_rate",
+            "effective_timestep",
+            "hard_effective_timestep",
+            "prefix_spike_rate",
+        ]
+    }
     progress = tqdm(loader, desc="test", leave=False)
 
     for batch_idx, (images, target) in enumerate(progress, start=1):
@@ -158,18 +171,34 @@ def evaluate(
             break
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
-        output = model(images, gumbel_tau=args.gumbel_tau, gate_threshold=args.gate_threshold)
-        logits = output["logits"]
+        full_output = model(images, gumbel_tau=args.gumbel_tau, gate_threshold=args.gate_threshold)
+        eval_output = full_output
+
+        if args.hard_prefix_eval:
+            hard_steps = int(round(move_output_to_float(full_output, "hard_effective_timestep")))
+            hard_steps = max(0, min(args.tmax, hard_steps))
+            eval_output = model(
+                images,
+                gumbel_tau=args.gumbel_tau,
+                gate_threshold=args.gate_threshold,
+                hard_prefix_steps=hard_steps,
+            )
+
+        logits = eval_output["logits"]
         assert isinstance(logits, torch.Tensor)
         batch_size = images.shape[0]
         meters["acc"].update(accuracy(logits, target), batch_size)
-        meters["spike_rate"].update(move_output_to_float(output, "spike_rate"), batch_size)
-        meters["effective_timestep"].update(move_output_to_float(output, "effective_timestep"), batch_size)
-        meters["hard_effective_timestep"].update(move_output_to_float(output, "hard_effective_timestep"), batch_size)
+        meters["raw_spike_rate"].update(move_output_to_float(full_output, "raw_spike_rate"), batch_size)
+        meters["gated_spike_rate"].update(move_output_to_float(full_output, "gated_spike_rate"), batch_size)
+        meters["spike_rate"].update(move_output_to_float(full_output, "spike_rate"), batch_size)
+        meters["effective_timestep"].update(move_output_to_float(full_output, "effective_timestep"), batch_size)
+        meters["hard_effective_timestep"].update(move_output_to_float(full_output, "hard_effective_timestep"), batch_size)
+        meters["prefix_spike_rate"].update(move_output_to_float(eval_output, "prefix_spike_rate"), batch_size)
         progress.set_postfix(acc=f"{meters['acc'].avg:.2f}")
 
     result = {key: meter.avg for key, meter in meters.items()}
-    result["energy_proxy"] = energy_proxy(result["spike_rate"], result["effective_timestep"])
+    result["energy_proxy"] = energy_proxy(result["gated_spike_rate"], result["effective_timestep"])
+    result["prefix_energy_proxy"] = energy_proxy(result["prefix_spike_rate"], result["hard_effective_timestep"])
     return result
 
 
@@ -238,17 +267,21 @@ def main() -> None:
             "train_acc": train_metrics["acc"],
             "test_acc": last_eval["acc"],
             "test_spike_rate": last_eval["spike_rate"],
+            "raw_spike_rate": last_eval["raw_spike_rate"],
+            "gated_spike_rate": last_eval["gated_spike_rate"],
+            "prefix_spike_rate": last_eval["prefix_spike_rate"],
             "effective_timestep": last_eval["effective_timestep"],
             "hard_effective_timestep": last_eval["hard_effective_timestep"],
             "energy_proxy": last_eval["energy_proxy"],
+            "prefix_energy_proxy": last_eval["prefix_energy_proxy"],
         }
         append_metrics(metrics_path, row)
         state = snapshot_model_state(model)
         selected = ", ".join(state["selected_names"])
         print(
             f"epoch {epoch:03d} | loss {train_metrics['loss']:.4f} | "
-            f"acc {last_eval['acc']:.2f}% | spike {last_eval['spike_rate']:.4f} | "
-            f"T_eff {last_eval['effective_timestep']:.2f} | energy proxy {last_eval['energy_proxy']:.4f} | "
+            f"acc {last_eval['acc']:.2f}% | raw {last_eval['raw_spike_rate']:.4f} | gated {last_eval['gated_spike_rate']:.4f} | "
+            f"T_eff {last_eval['effective_timestep']:.2f}/hard {last_eval['hard_effective_timestep']:.0f} | energy proxy {last_eval['energy_proxy']:.4f} | "
             f"neurons {selected}"
         )
 
@@ -259,9 +292,13 @@ def main() -> None:
         "dataset": args.dataset,
         "test_accuracy": last_eval.get("acc", 0.0),
         "average_spike_rate": last_eval.get("spike_rate", 0.0),
+        "raw_spike_rate": last_eval.get("raw_spike_rate", 0.0),
+        "gated_spike_rate": last_eval.get("gated_spike_rate", 0.0),
+        "prefix_spike_rate": last_eval.get("prefix_spike_rate", 0.0),
         "effective_timestep": last_eval.get("effective_timestep", 0.0),
         "hard_effective_timestep": last_eval.get("hard_effective_timestep", 0.0),
         "energy_proxy": last_eval.get("energy_proxy", 0.0),
+        "prefix_energy_proxy": last_eval.get("prefix_energy_proxy", 0.0),
         **model_state,
     }
     save_json(run_dir / "summary.json", summary)
@@ -279,8 +316,11 @@ def main() -> None:
     print("\nTimestep gates:")
     print([round(v, 4) for v in model_state["timestep_gates"]] or [1.0] * args.tmax)
     print(f"Effective timestep: {summary['effective_timestep']:.4f}")
-    print(f"Average spike rate: {summary['average_spike_rate']:.6f}")
+    print(f"Raw spike rate: {summary['raw_spike_rate']:.6f}")
+    print(f"Gated spike rate: {summary['gated_spike_rate']:.6f}")
+    print(f"Prefix spike rate: {summary['prefix_spike_rate']:.6f}")
     print(f"Energy proxy: {summary['energy_proxy']:.6f}")
+    print(f"Prefix energy proxy: {summary['prefix_energy_proxy']:.6f}")
     print(f"Test accuracy: {summary['test_accuracy']:.2f}%")
     print(f"Saved results to: {run_dir}")
 

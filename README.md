@@ -63,11 +63,13 @@ python train.py \
   --eta-time 0.02 \
   --gumbel-tau 1.0 \
   --monotonic-gate \
+  --hard-prefix-eval \
+  --reg-warmup-epochs 5 \
   --device cuda \
   --amp
 ```
 
-CIFAR-10 is available with `--dataset cifar10`.
+CIFAR-10 is available with `--dataset cifar10`. Regularization is warmed up with `--reg-warmup-epochs` so spike and time penalties do not dominate the earliest epochs. `--hard-prefix-eval` adds an evaluation pass that runs only the first `hard_effective_timestep` steps.
 
 ## Experiment Suite
 
@@ -95,15 +97,25 @@ results/<run_name>/summary.json
 results/<run_name>/plots/
 ```
 
-Plots include accuracy, spike rate, effective timestep, energy proxy, final
-timestep gates, and candidate probabilities per layer.
+Plots include accuracy, raw spike rate, gated spike rate, prefix spike rate,
+effective timestep, hard effective timestep, energy proxy, prefix energy proxy,
+final timestep gates, and candidate probabilities per layer.
 
 ## Notes
+
+Metrics:
+
+- `raw_spike_rate`: average spike activity before timestep gates are applied.
+- `gated_spike_rate`: average spike activity after timestep gates are applied. The legacy `spike_rate` key is kept equal to this value.
+- `effective_timestep`: sum of soft timestep gates.
+- `hard_effective_timestep`: number of active prefix timesteps with gate values above the threshold.
+- `prefix_spike_rate`: spike rate from an optional hard-prefix evaluation pass that actually skips timesteps after `T_eff`.
+- `prefix_energy_proxy`: `prefix_spike_rate * hard_effective_timestep`.
 
 The reported `energy proxy` is:
 
 ```text
-average_spike_rate * effective_timestep
+gated_spike_rate * effective_timestep
 ```
 
 It should not be interpreted as measured hardware energy.

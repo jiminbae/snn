@@ -76,9 +76,12 @@ class FixedLIFSNN(nn.Module):
         return {
             "logits": logits_sum / self.tmax,
             "spike_rate": spike_rate,
+            "raw_spike_rate": spike_rate,
+            "gated_spike_rate": spike_rate,
             "gates": torch.ones(self.tmax, device=x.device, dtype=x.dtype),
             "effective_timestep": effective_timestep,
             "hard_effective_timestep": effective_timestep,
+            "prefix_spike_rate": spike_rate,
             "selected_indices": [],
             "selected_names": ["fixed_lif", "fixed_lif"],
             "candidate_probs": [],
@@ -119,7 +122,7 @@ class SpikeGateSNN(nn.Module):
             self.register_buffer("alpha2", torch.zeros(len(candidates)))
 
         if self.use_gate:
-            self.theta = nn.Parameter(torch.ones(tmax) * 3.0)
+            self.theta = nn.Parameter(torch.ones(tmax) * 5.0)
         else:
             self.register_buffer("theta", torch.ones(tmax) * 30.0)
 
@@ -177,6 +180,7 @@ class SpikeGateSNN(nn.Module):
         *,
         gumbel_tau: float = 1.0,
         gate_threshold: float | None = None,
+        hard_prefix_steps: int | None = None,
     ) -> dict[str, Tensor | list[Tensor] | list[str] | list[int]]:
         x1 = self.backbone.conv1(x)
         num_candidates = len(self.candidates)
@@ -193,30 +197,40 @@ class SpikeGateSNN(nn.Module):
         gates = self.timestep_gates()
 
         logits_sum = x.new_zeros((x.shape[0], 10))
-        spike_costs: list[Tensor] = []
+        raw_spike_costs: list[Tensor] = []
+        gated_spike_costs: list[Tensor] = []
+        steps_to_run = self.tmax if hard_prefix_steps is None else max(0, min(self.tmax, int(hard_prefix_steps)))
 
-        for t in range(self.tmax):
+        for t in range(steps_to_run):
             u1, s1_prev, s1 = self._candidate_step(x1, u1, s1_prev, z1)
             s1_gated = gates[t] * s1
             x2 = self.backbone.conv2(self.backbone.pool(s1_gated))
             u2, s2_prev, s2 = self._candidate_step(x2, u2, s2_prev, z2)
             s2_gated = gates[t] * s2
             logits_sum = logits_sum + self.backbone.classify(s2_gated)
-            spike_costs.extend([s1_gated.mean(), s2_gated.mean()])
+            raw_spike_costs.extend([s1.mean(), s2.mean()])
+            gated_spike_costs.extend([s1_gated.mean(), s2_gated.mean()])
 
-        spike_rate = torch.stack(spike_costs).mean()
+        raw_spike_rate = torch.stack(raw_spike_costs).mean() if raw_spike_costs else x.new_tensor(0.0)
+        gated_spike_rate = torch.stack(gated_spike_costs).mean() if gated_spike_costs else x.new_tensor(0.0)
         effective_timestep = gates.sum()
         threshold = self.gate_threshold if gate_threshold is None else gate_threshold
         active_prefix = torch.cumprod((gates > threshold).to(x.dtype), dim=0)
         hard_effective = active_prefix.sum()
-        normalizer = torch.clamp(effective_timestep, min=1e-6)
+        normalizer = torch.clamp(
+            effective_timestep if hard_prefix_steps is None else x.new_tensor(float(max(steps_to_run, 1))),
+            min=1e-6,
+        )
 
         return {
             "logits": logits_sum / normalizer,
-            "spike_rate": spike_rate,
+            "spike_rate": gated_spike_rate,
+            "raw_spike_rate": raw_spike_rate,
+            "gated_spike_rate": gated_spike_rate,
             "gates": gates,
             "effective_timestep": effective_timestep,
             "hard_effective_timestep": hard_effective,
+            "prefix_spike_rate": gated_spike_rate,
             "selected_indices": self.selected_indices(),
             "selected_names": self.selected_names(),
             "candidate_probs": self.candidate_probabilities(),

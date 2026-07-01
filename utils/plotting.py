@@ -40,9 +40,14 @@ def plot_training_curves(metrics_path: str | Path, plots_dir: str | Path) -> Non
     plots_dir.mkdir(parents=True, exist_ok=True)
     rows = _read_metric_csv(metrics_path)
     _line_plot(rows, "test_acc", "Test accuracy (%)", plots_dir / "accuracy_curve.png")
-    _line_plot(rows, "test_spike_rate", "Average spike rate", plots_dir / "spike_rate_curve.png")
+    _line_plot(rows, "test_spike_rate", "Gated spike rate", plots_dir / "spike_rate_curve.png")
+    _line_plot(rows, "raw_spike_rate", "Raw spike rate", plots_dir / "raw_spike_rate_curve.png")
+    _line_plot(rows, "gated_spike_rate", "Gated spike rate", plots_dir / "gated_spike_rate_curve.png")
+    _line_plot(rows, "prefix_spike_rate", "Prefix spike rate", plots_dir / "prefix_spike_rate_curve.png")
     _line_plot(rows, "effective_timestep", "Effective timestep", plots_dir / "effective_timestep_curve.png")
+    _line_plot(rows, "hard_effective_timestep", "Hard effective timestep", plots_dir / "hard_effective_timestep_curve.png")
     _line_plot(rows, "energy_proxy", "Energy proxy", plots_dir / "energy_proxy_curve.png")
+    _line_plot(rows, "prefix_energy_proxy", "Prefix energy proxy", plots_dir / "prefix_energy_proxy_curve.png")
 
 
 def plot_timestep_gates(gates: list[float], output: str | Path) -> None:

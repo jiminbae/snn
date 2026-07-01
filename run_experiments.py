@@ -24,6 +24,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lambda-spike", type=float, default=0.05)
     parser.add_argument("--eta-time", type=float, default=0.02)
     parser.add_argument("--gumbel-tau", type=float, default=1.0)
+    parser.add_argument("--hard-prefix-eval", action="store_true")
+    parser.add_argument("--reg-warmup-epochs", type=int, default=5)
     parser.add_argument("--monotonic-gate", dest="monotonic_gate", action="store_true", default=True)
     parser.add_argument("--no-monotonic-gate", dest="monotonic_gate", action="store_false")
     parser.add_argument("--limit-train-batches", type=int, default=None)
@@ -74,9 +76,13 @@ def main() -> None:
             str(args.eta_time),
             "--gumbel-tau",
             str(args.gumbel_tau),
+            "--reg-warmup-epochs",
+            str(args.reg_warmup_epochs),
         ]
         if args.amp:
             cmd.append("--amp")
+        if args.hard_prefix_eval:
+            cmd.append("--hard-prefix-eval")
         if args.monotonic_gate and model_name in {"gate_only", "spikegate"}:
             cmd.append("--monotonic-gate")
         if args.limit_train_batches is not None:
@@ -92,9 +98,13 @@ def main() -> None:
             {
                 "Model": model_name,
                 "Accuracy": summary["test_accuracy"],
-                "Spike Rate": summary["average_spike_rate"],
+                "Raw Spike Rate": summary["raw_spike_rate"],
+                "Gated Spike Rate": summary["gated_spike_rate"],
+                "Prefix Spike Rate": summary["prefix_spike_rate"],
                 "Effective Timestep": summary["effective_timestep"],
+                "Hard Effective Timestep": summary["hard_effective_timestep"],
                 "Energy Proxy": summary["energy_proxy"],
+                "Prefix Energy Proxy": summary["prefix_energy_proxy"],
                 "Selected Neurons": "; ".join(summary["selected_names"]),
             }
         )
@@ -107,9 +117,13 @@ def main() -> None:
             fieldnames=[
                 "Model",
                 "Accuracy",
-                "Spike Rate",
+                "Raw Spike Rate",
+                "Gated Spike Rate",
+                "Prefix Spike Rate",
                 "Effective Timestep",
+                "Hard Effective Timestep",
                 "Energy Proxy",
+                "Prefix Energy Proxy",
                 "Selected Neurons",
             ],
         )
@@ -120,9 +134,9 @@ def main() -> None:
     for row in rows:
         print(
             f"{row['Model']:>16} | acc {float(row['Accuracy']):6.2f}% | "
-            f"spike {float(row['Spike Rate']):.5f} | "
-            f"T {float(row['Effective Timestep']):.3f} | "
-            f"energy proxy {float(row['Energy Proxy']):.5f} | "
+            f"raw {float(row['Raw Spike Rate']):.5f} | gated {float(row['Gated Spike Rate']):.5f} | "
+            f"prefix {float(row['Prefix Spike Rate']):.5f} | T {float(row['Effective Timestep']):.3f}/hard {float(row['Hard Effective Timestep']):.0f} | "
+            f"energy proxy {float(row['Energy Proxy']):.5f} | prefix energy {float(row['Prefix Energy Proxy']):.5f} | "
             f"{row['Selected Neurons']}"
         )
 
