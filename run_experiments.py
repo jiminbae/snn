@@ -25,7 +25,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eta-time", type=float, default=0.02)
     parser.add_argument("--gumbel-tau", type=float, default=1.0)
     parser.add_argument("--hard-prefix-eval", action="store_true")
+    parser.add_argument("--hard-prefix-unscaled", action="store_true")
     parser.add_argument("--reg-warmup-epochs", type=int, default=5)
+    parser.add_argument("--spike-cost-mode", choices=["gated", "raw", "mixed"], default="gated")
     parser.add_argument("--monotonic-gate", dest="monotonic_gate", action="store_true", default=True)
     parser.add_argument("--no-monotonic-gate", dest="monotonic_gate", action="store_false")
     parser.add_argument("--limit-train-batches", type=int, default=None)
@@ -78,11 +80,15 @@ def main() -> None:
             str(args.gumbel_tau),
             "--reg-warmup-epochs",
             str(args.reg_warmup_epochs),
+            "--spike-cost-mode",
+            args.spike_cost_mode,
         ]
         if args.amp:
             cmd.append("--amp")
         if args.hard_prefix_eval:
             cmd.append("--hard-prefix-eval")
+        if args.hard_prefix_unscaled:
+            cmd.append("--hard-prefix-unscaled")
         if args.monotonic_gate and model_name in {"gate_only", "spikegate"}:
             cmd.append("--monotonic-gate")
         if args.limit_train_batches is not None:

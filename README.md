@@ -64,12 +64,14 @@ python train.py \
   --gumbel-tau 1.0 \
   --monotonic-gate \
   --hard-prefix-eval \
+  --hard-prefix-unscaled \
+  --spike-cost-mode mixed \
   --reg-warmup-epochs 5 \
   --device cuda \
   --amp
 ```
 
-CIFAR-10 is available with `--dataset cifar10`. Regularization is warmed up with `--reg-warmup-epochs` so spike and time penalties do not dominate the earliest epochs. `--hard-prefix-eval` adds an evaluation pass that runs only the first `hard_effective_timestep` steps.
+CIFAR-10 is available with `--dataset cifar10`. Regularization is warmed up with `--reg-warmup-epochs` so spike and time penalties do not dominate the earliest epochs. `--hard-prefix-eval` adds an evaluation pass that runs only the first `hard_effective_timestep` steps. Add `--hard-prefix-unscaled` to run those active prefix timesteps with unscaled binary spikes, approximating deployment-style prefix inference.
 
 ## Experiment Suite
 
@@ -109,8 +111,13 @@ Metrics:
 - `gated_spike_rate`: average spike activity after timestep gates are applied. The legacy `spike_rate` key is kept equal to this value.
 - `effective_timestep`: sum of soft timestep gates.
 - `hard_effective_timestep`: number of active prefix timesteps with gate values above the threshold.
-- `prefix_spike_rate`: spike rate from an optional hard-prefix evaluation pass that actually skips timesteps after `T_eff`.
+- `prefix_spike_rate`: spike rate from an optional hard-prefix evaluation pass that actually skips timesteps after `T_eff`. With `--hard-prefix-unscaled`, this is the most relevant metric for deployment-style prefix inference.
 - `prefix_energy_proxy`: `prefix_spike_rate * hard_effective_timestep`.
+- `--spike-cost-mode gated`: use gated spike activity for the spike penalty, matching the original behavior.
+- `--spike-cost-mode raw`: use raw spike activity to test whether actual spike generation decreases.
+- `--spike-cost-mode mixed`: use an equal raw and gated blend for a balanced pilot setting.
+
+Default spike cost mode is `gated` for backward compatibility. For pilot comparisons, use `gated` to test effective soft-gated activity reduction, `raw` to test actual spike generation reduction, and `mixed` as a balanced setting for follow-up experiments.
 
 The reported `energy proxy` is:
 

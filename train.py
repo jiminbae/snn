@@ -40,7 +40,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gate-threshold", type=float, default=0.5)
     parser.add_argument("--monotonic-gate", action="store_true")
     parser.add_argument("--hard-prefix-eval", action="store_true")
+    parser.add_argument("--hard-prefix-unscaled", action="store_true")
     parser.add_argument("--reg-warmup-epochs", type=int, default=5)
+    parser.add_argument("--spike-cost-mode", choices=["gated", "raw", "mixed"], default="gated")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
@@ -69,6 +71,20 @@ def move_output_to_float(output: dict[str, Any], key: str) -> float:
     return float(value)
 
 
+def select_spike_cost(output: dict[str, Any], mode: str) -> torch.Tensor:
+    raw = output["raw_spike_rate"]
+    gated = output["gated_spike_rate"]
+    assert isinstance(raw, torch.Tensor)
+    assert isinstance(gated, torch.Tensor)
+    if mode == "raw":
+        return raw
+    if mode == "gated":
+        return gated
+    if mode == "mixed":
+        return 0.5 * raw + 0.5 * gated
+    raise ValueError(f"Unknown spike cost mode: {mode}")
+
+
 def compute_loss(
     model_name: str,
     output: dict[str, Any],
@@ -76,11 +92,12 @@ def compute_loss(
     lambda_spike: float,
     eta_time: float,
     tmax: int,
+    spike_cost_mode: str,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     logits = output["logits"]
     assert isinstance(logits, torch.Tensor)
     ce_loss = F.cross_entropy(logits, target)
-    spike_cost = output["spike_rate"]
+    spike_cost = select_spike_cost(output, spike_cost_mode)
     effective_timestep = output["effective_timestep"]
     assert isinstance(spike_cost, torch.Tensor)
     assert isinstance(effective_timestep, torch.Tensor)
@@ -105,7 +122,7 @@ def train_one_epoch(
     epoch: int,
 ) -> dict[str, float]:
     model.train()
-    meters = {name: AverageMeter() for name in ["loss", "ce_loss", "spike_cost", "time_cost", "acc"]}
+    meters = {name: AverageMeter() for name in ["loss", "ce_loss", "spike_cost", "time_cost", "acc", "raw_spike_rate", "gated_spike_rate"]}
     amp_enabled = args.amp and device.type == "cuda"
     progress = tqdm(loader, desc=f"epoch {epoch} train", leave=False)
 
@@ -125,6 +142,7 @@ def train_one_epoch(
                 args.lambda_spike * min(1.0, epoch / max(1, args.reg_warmup_epochs)),
                 args.eta_time * min(1.0, epoch / max(1, args.reg_warmup_epochs)),
                 args.tmax,
+                args.spike_cost_mode,
             )
 
         scaler.scale(total).backward()
@@ -137,6 +155,8 @@ def train_one_epoch(
         meters["loss"].update(total.detach().item(), batch_size)
         meters["ce_loss"].update(ce_loss.detach().item(), batch_size)
         meters["spike_cost"].update(spike_cost.detach().item(), batch_size)
+        meters["raw_spike_rate"].update(move_output_to_float(output, "raw_spike_rate"), batch_size)
+        meters["gated_spike_rate"].update(move_output_to_float(output, "gated_spike_rate"), batch_size)
         meters["time_cost"].update(time_cost.detach().item(), batch_size)
         meters["acc"].update(accuracy(logits.detach(), target), batch_size)
         progress.set_postfix(loss=f"{meters['loss'].avg:.4f}", acc=f"{meters['acc'].avg:.2f}")
@@ -182,6 +202,7 @@ def evaluate(
                 gumbel_tau=args.gumbel_tau,
                 gate_threshold=args.gate_threshold,
                 hard_prefix_steps=hard_steps,
+                hard_prefix_unscaled=args.hard_prefix_unscaled,
             )
 
         logits = eval_output["logits"]
@@ -263,6 +284,8 @@ def main() -> None:
             "train_loss": train_metrics["loss"],
             "train_ce_loss": train_metrics["ce_loss"],
             "train_spike_cost": train_metrics["spike_cost"],
+            "train_raw_spike_rate": train_metrics["raw_spike_rate"],
+            "train_gated_spike_rate": train_metrics["gated_spike_rate"],
             "train_time_cost": train_metrics["time_cost"],
             "train_acc": train_metrics["acc"],
             "test_acc": last_eval["acc"],

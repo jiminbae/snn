@@ -181,6 +181,7 @@ class SpikeGateSNN(nn.Module):
         gumbel_tau: float = 1.0,
         gate_threshold: float | None = None,
         hard_prefix_steps: int | None = None,
+        hard_prefix_unscaled: bool = False,
     ) -> dict[str, Tensor | list[Tensor] | list[str] | list[int]]:
         x1 = self.backbone.conv1(x)
         num_candidates = len(self.candidates)
@@ -202,11 +203,12 @@ class SpikeGateSNN(nn.Module):
         steps_to_run = self.tmax if hard_prefix_steps is None else max(0, min(self.tmax, int(hard_prefix_steps)))
 
         for t in range(steps_to_run):
+            gate_t = x.new_tensor(1.0) if hard_prefix_steps is not None and hard_prefix_unscaled else gates[t]
             u1, s1_prev, s1 = self._candidate_step(x1, u1, s1_prev, z1)
-            s1_gated = gates[t] * s1
+            s1_gated = gate_t * s1
             x2 = self.backbone.conv2(self.backbone.pool(s1_gated))
             u2, s2_prev, s2 = self._candidate_step(x2, u2, s2_prev, z2)
-            s2_gated = gates[t] * s2
+            s2_gated = gate_t * s2
             logits_sum = logits_sum + self.backbone.classify(s2_gated)
             raw_spike_costs.extend([s1.mean(), s2.mean()])
             gated_spike_costs.extend([s1_gated.mean(), s2_gated.mean()])

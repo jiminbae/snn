@@ -5,3 +5,7 @@ __pycache__/
 data/
 results/*
 !results/.gitkeep
+
+.venv/
+venv/
+env/
