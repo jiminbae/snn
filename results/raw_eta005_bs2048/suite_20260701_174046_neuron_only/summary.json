@@ -1,0 +1,68 @@
+{
+  "average_spike_rate": 0.3297605318546295,
+  "candidate_metadata": [
+    {
+      "name": "fast_sensitive",
+      "tau": 2.0,
+      "v_th": 0.5
+    },
+    {
+      "name": "fast_balanced",
+      "tau": 2.0,
+      "v_th": 1.0
+    },
+    {
+      "name": "memory_balanced",
+      "tau": 6.0,
+      "v_th": 1.0
+    },
+    {
+      "name": "memory_sparse",
+      "tau": 6.0,
+      "v_th": 1.5
+    }
+  ],
+  "candidate_probabilities": [
+    [
+      0.2722642719745636,
+      0.22481288015842438,
+      0.28180211782455444,
+      0.22112075984477997
+    ],
+    [
+      0.26534736156463623,
+      0.2346862554550171,
+      0.2755538523197174,
+      0.22441250085830688
+    ]
+  ],
+  "dataset": "fashionmnist",
+  "effective_timestep": 8.0,
+  "energy_proxy": 2.638084254837036,
+  "gated_spike_rate": 0.3297605318546295,
+  "hard_effective_timestep": 8.0,
+  "model": "neuron_only",
+  "prefix_energy_proxy": 2.638084254837036,
+  "prefix_spike_rate": 0.3297605318546295,
+  "raw_spike_rate": 0.3297605318546295,
+  "run_name": "suite_20260701_174046_neuron_only",
+  "selected_indices": [
+    2,
+    2
+  ],
+  "selected_names": [
+    "memory_balanced",
+    "memory_balanced"
+  ],
+  "test_accuracy": 87.81000018119812,
+  "timestep_gates": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ]
+}
