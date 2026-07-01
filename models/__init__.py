@@ -1,3 +1,3 @@
-from .spikegate import FixedLIFSNN, SpikeGateSNN, build_model
+from .chronoskip import ChronoSkipSNN, FixedLIFSNN, build_model
 
-__all__ = ["FixedLIFSNN", "SpikeGateSNN", "build_model"]
+__all__ = ["ChronoSkipSNN", "FixedLIFSNN", "build_model"]

@@ -1,94 +1,76 @@
-# SpikeGate SNN Prototype
+# ChronoSkip SNN Prototype
 
-This is a pure PyTorch + torchvision pilot implementation for testing whether
-SpikeGate can reduce spike activity and effective timestep while maintaining
-classification accuracy.
+ChronoSkip learns deployable prefix timestep budgets for efficient spiking neural network inference.
 
-## Hypothesis
+Full title: **ChronoSkip: Soft-to-Hard Learning of Layer-wise Timestep Skipping for Efficient Spiking Neural Networks**.
 
-If SpikeGate is promising, it should maintain accuracy close to the fixed LIF
-baseline while reducing spike rate and effective timestep. A strong positive
-signal is lower energy proxy with less than 1% absolute accuracy drop.
+## Motivation
 
-This pilot evaluates whether SpikeGate reduces spike activity and effective
-timestep, which are commonly used proxies for neuromorphic energy efficiency.
-Actual hardware power measurement is not included in this prototype.
+Fixed-timestep SNNs execute all timesteps even when later timesteps may be redundant. ChronoSkip learns monotonic prefix timestep budgets during training and converts soft training gates into hard-prefix inference that actually skips later timesteps.
+
+This repository is focused on timestep skipping and prefix timestep budget learning. It does not include neuron candidate search, NAS, PLIF, or architecture search.
 
 ## Models
 
-- `fixed_lif`: fixed Conv-SNN baseline with one LIF setting.
-- `gate_only`: fixed LIF candidate with a learnable timestep gate.
-- `neuron_only`: Hard Gumbel-Softmax neuron candidate search without timestep gating.
-- `softmax_spikegate`: softmax mixture candidate search plus timestep gating.
-- `spikegate`: Hard Gumbel-Softmax candidate search plus timestep gating.
+- `fixed_lif`: fixed-timestep Conv-SNN baseline. Change `--tmax` to run fixed T baselines.
+- `soft_gate`: learnable monotonic soft timestep gates while still running all timesteps.
+- `global_chronoskip`: one global monotonic gate shared by both spiking layers.
+- `global_chronoskip_s2h`: global ChronoSkip with soft-to-hard consistency training.
+- `layerwise_chronoskip`: separate monotonic gates for layer 1 and layer 2.
+- `layerwise_chronoskip_s2h`: layer-wise ChronoSkip with soft-to-hard consistency training.
 
-Each spiking layer chooses from:
+## Key Ideas
 
-- `fast_sensitive`: `v_th=0.5`, `tau=2.0`
-- `fast_balanced`: `v_th=1.0`, `tau=2.0`
-- `memory_balanced`: `v_th=1.0`, `tau=6.0`
-- `memory_sparse`: `v_th=1.5`, `tau=6.0`
+- Monotonic prefix gates: `cumprod(sigmoid(theta))`.
+- Hard-prefix timestep skipping: evaluation can run only active prefix timesteps.
+- Unscaled hard-prefix inference: `--hard-prefix-unscaled` uses binary spikes on active prefix timesteps.
+- Soft-to-hard consistency training: S2H models train soft and hard-prefix passes together.
+- Layer-wise timestep budgets: layer-wise models learn separate budgets for each spiking layer.
+- Energy proxy only: reported values are not measured hardware power.
 
 ## Setup
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Single Runs
-
-Fixed LIF baseline:
+## Smoke Test
 
 ```bash
-python train.py \
-  --model fixed_lif \
-  --dataset fashionmnist \
-  --epochs 20 \
-  --batch-size 256 \
-  --tmax 8 \
-  --device cuda \
-  --amp
+python train.py   --model layerwise_chronoskip_s2h   --dataset fashionmnist   --epochs 1   --batch-size 128   --device cuda   --amp   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --limit-train-batches 2   --limit-test-batches 2
 ```
 
-SpikeGate:
+If CUDA is unavailable, the script falls back to CPU.
+
+## Single Run
 
 ```bash
-python train.py \
-  --model spikegate \
-  --dataset fashionmnist \
-  --epochs 20 \
-  --batch-size 256 \
-  --tmax 8 \
-  --lambda-spike 0.05 \
-  --eta-time 0.02 \
-  --gumbel-tau 1.0 \
-  --monotonic-gate \
-  --hard-prefix-eval \
-  --hard-prefix-unscaled \
-  --spike-cost-mode mixed \
-  --reg-warmup-epochs 5 \
-  --device cuda \
-  --amp
+python train.py   --model global_chronoskip_s2h   --dataset fashionmnist   --epochs 20   --batch-size 256   --tmax 8   --lambda-spike 0.05   --eta-time 0.02   --spike-cost-mode gated   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --hard-ce-weight 0.5   --consistency-weight 0.1   --reg-warmup-epochs 5   --device cuda   --amp
 ```
 
-CIFAR-10 is available with `--dataset cifar10`. Regularization is warmed up with `--reg-warmup-epochs` so spike and time penalties do not dominate the earliest epochs. `--hard-prefix-eval` adds an evaluation pass that runs only the first `hard_effective_timestep` steps. Add `--hard-prefix-unscaled` to run those active prefix timesteps with unscaled binary spikes, approximating deployment-style prefix inference.
-
-## Experiment Suite
+## Main Experiment Suite
 
 ```bash
-python run_experiments.py
+python run_chronoskip_experiments.py   --dataset fashionmnist   --epochs 20   --batch-size 2048   --device cuda   --amp   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1
 ```
 
 The suite runs:
 
-- `fixed_lif`
-- `gate_only`
-- `neuron_only`
-- `spikegate`
+- `fixed_lif_T8`
+- `fixed_lif_T6`
+- `fixed_lif_T4`
+- `fixed_lif_T2`
+- `soft_gate_T8`
+- `global_chronoskip_T8`
+- `global_chronoskip_s2h_T8`
+- `layerwise_chronoskip_T8`
+- `layerwise_chronoskip_s2h_T8`
 
-and writes `results/comparison.csv`.
+The comparison CSV is saved to `results/comparison.csv`.
 
-## Outputs
+## Metrics
 
 Each run writes:
 
@@ -99,30 +81,36 @@ results/<run_name>/summary.json
 results/<run_name>/plots/
 ```
 
-Plots include accuracy, raw spike rate, gated spike rate, prefix spike rate,
-effective timestep, hard effective timestep, energy proxy, prefix energy proxy,
-final timestep gates, and candidate probabilities per layer.
+Logged metrics include:
 
-## Notes
+- `test_acc`
+- `soft_acc`
+- `hard_acc`
+- `raw_spike_rate`
+- `gated_spike_rate`
+- `prefix_spike_rate`
+- `effective_timestep`
+- `hard_effective_timestep`
+- `layer1_effective_timestep`
+- `layer2_effective_timestep`
+- `layer1_hard_timestep`
+- `layer2_hard_timestep`
+- `energy_proxy`
+- `prefix_energy_proxy`
 
-Metrics:
-
-- `raw_spike_rate`: average spike activity before timestep gates are applied.
-- `gated_spike_rate`: average spike activity after timestep gates are applied. The legacy `spike_rate` key is kept equal to this value.
-- `effective_timestep`: sum of soft timestep gates.
-- `hard_effective_timestep`: number of active prefix timesteps with gate values above the threshold.
-- `prefix_spike_rate`: spike rate from an optional hard-prefix evaluation pass that actually skips timesteps after `T_eff`. With `--hard-prefix-unscaled`, this is the most relevant metric for deployment-style prefix inference.
-- `prefix_energy_proxy`: `prefix_spike_rate * hard_effective_timestep`.
-- `--spike-cost-mode gated`: use gated spike activity for the spike penalty, matching the original behavior.
-- `--spike-cost-mode raw`: use raw spike activity to test whether actual spike generation decreases.
-- `--spike-cost-mode mixed`: use an equal raw and gated blend for a balanced pilot setting.
-
-Default spike cost mode is `gated` for backward compatibility. For pilot comparisons, use `gated` to test effective soft-gated activity reduction, `raw` to test actual spike generation reduction, and `mixed` as a balanced setting for follow-up experiments.
-
-The reported `energy proxy` is:
+Energy proxy definitions:
 
 ```text
-gated_spike_rate * effective_timestep
+energy_proxy = gated_spike_rate * effective_timestep
+prefix_energy_proxy = prefix_spike_rate * hard_effective_timestep
 ```
 
-It should not be interpreted as measured hardware energy.
+These are proxy metrics for comparing spike activity and active timestep budgets. They are not actual hardware energy measurements.
+
+## Scientific Comparisons
+
+The main comparisons are:
+
+- ChronoSkip versus fixed shorter-T baselines at similar hard timestep budgets.
+- Soft-to-hard consistency training versus non-S2H training.
+- Global timestep budgets versus layer-wise timestep budgets.

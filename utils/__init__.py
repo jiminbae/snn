@@ -1,1 +1,1 @@
-"""Utility package for SpikeGate experiments."""
+"""Utility package for ChronoSkip experiments."""

@@ -1,4 +1,4 @@
-"""LIF neuron primitives for the SpikeGate prototype."""
+"""LIF neuron primitives for the ChronoSkip prototype."""
 
 from __future__ import annotations
 
@@ -32,21 +32,12 @@ def spike_fn(x: Tensor, scale: float = 10.0) -> Tensor:
 
 @dataclass(frozen=True)
 class LIFConfig:
-    name: str
-    v_th: float
-    tau: float
+    v_th: float = 1.0
+    tau: float = 2.0
 
     @property
     def beta(self) -> float:
         return math.exp(-1.0 / self.tau)
-
-
-DEFAULT_CANDIDATES: tuple[LIFConfig, ...] = (
-    LIFConfig("fast_sensitive", v_th=0.5, tau=2.0),
-    LIFConfig("fast_balanced", v_th=1.0, tau=2.0),
-    LIFConfig("memory_balanced", v_th=1.0, tau=6.0),
-    LIFConfig("memory_sparse", v_th=1.5, tau=6.0),
-)
 
 
 def lif_step(

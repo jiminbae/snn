@@ -1,9 +1,10 @@
-"""Plot generation for SpikeGate experiments."""
+"""Plot generation for ChronoSkip experiments."""
 
 from __future__ import annotations
 
 import csv
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 
@@ -40,40 +41,39 @@ def plot_training_curves(metrics_path: str | Path, plots_dir: str | Path) -> Non
     plots_dir.mkdir(parents=True, exist_ok=True)
     rows = _read_metric_csv(metrics_path)
     _line_plot(rows, "test_acc", "Test accuracy (%)", plots_dir / "accuracy_curve.png")
-    _line_plot(rows, "test_spike_rate", "Gated spike rate", plots_dir / "spike_rate_curve.png")
+    _line_plot(rows, "soft_acc", "Soft accuracy (%)", plots_dir / "soft_accuracy_curve.png")
+    _line_plot(rows, "hard_acc", "Hard accuracy (%)", plots_dir / "hard_accuracy_curve.png")
     _line_plot(rows, "raw_spike_rate", "Raw spike rate", plots_dir / "raw_spike_rate_curve.png")
     _line_plot(rows, "gated_spike_rate", "Gated spike rate", plots_dir / "gated_spike_rate_curve.png")
     _line_plot(rows, "prefix_spike_rate", "Prefix spike rate", plots_dir / "prefix_spike_rate_curve.png")
     _line_plot(rows, "effective_timestep", "Effective timestep", plots_dir / "effective_timestep_curve.png")
     _line_plot(rows, "hard_effective_timestep", "Hard effective timestep", plots_dir / "hard_effective_timestep_curve.png")
+    _line_plot(rows, "layer1_effective_timestep", "Layer 1 effective timestep", plots_dir / "layer1_effective_timestep_curve.png")
+    _line_plot(rows, "layer2_effective_timestep", "Layer 2 effective timestep", plots_dir / "layer2_effective_timestep_curve.png")
+    _line_plot(rows, "layer1_hard_timestep", "Layer 1 hard timestep", plots_dir / "layer1_hard_timestep_curve.png")
+    _line_plot(rows, "layer2_hard_timestep", "Layer 2 hard timestep", plots_dir / "layer2_hard_timestep_curve.png")
     _line_plot(rows, "energy_proxy", "Energy proxy", plots_dir / "energy_proxy_curve.png")
     _line_plot(rows, "prefix_energy_proxy", "Prefix energy proxy", plots_dir / "prefix_energy_proxy_curve.png")
 
 
-def plot_timestep_gates(gates: list[float], output: str | Path) -> None:
+def _plot_gate_values(values: list[float], title: str, output: Path) -> None:
     plt.figure(figsize=(6, 4))
-    plt.bar(range(1, len(gates) + 1), gates)
+    plt.bar(range(1, len(values) + 1), values)
     plt.xlabel("Timestep")
     plt.ylabel("Gate value")
+    plt.title(title)
     plt.ylim(0.0, 1.05)
     plt.tight_layout()
     plt.savefig(output, dpi=160)
     plt.close()
 
 
-def plot_candidate_probabilities(
-    candidate_names: list[str],
-    layer_probs: list[list[float]],
-    plots_dir: str | Path,
-) -> None:
-    plots_dir = Path(plots_dir)
-    for layer_idx, probs in enumerate(layer_probs, start=1):
-        plt.figure(figsize=(7, 4))
-        plt.bar(candidate_names, probs)
-        plt.xlabel("Candidate")
-        plt.ylabel("Probability")
-        plt.ylim(0.0, 1.05)
-        plt.xticks(rotation=20, ha="right")
-        plt.tight_layout()
-        plt.savefig(plots_dir / f"candidate_probabilities_layer{layer_idx}.png", dpi=160)
-        plt.close()
+def plot_timestep_gates(gates: Any, output: str | Path) -> None:
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(gates, dict):
+        for layer_name, values in gates.items():
+            safe_name = str(layer_name).replace(" ", "_")
+            _plot_gate_values([float(v) for v in values], str(layer_name), output.with_name(f"{output.stem}_{safe_name}{output.suffix}"))
+        return
+    _plot_gate_values([float(v) for v in gates], "Global timestep gate", output)
