@@ -39,6 +39,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gate-init", type=float, default=5.0)
     parser.add_argument("--lambda-spike", type=float, default=0.05)
     parser.add_argument("--eta-time", type=float, default=0.02)
+    parser.add_argument("--lambda-hard-budget", type=float, default=0.0)
+    parser.add_argument("--hard-budget-sharpness", type=float, default=20.0)
+    parser.add_argument("--target-timestep", type=float, default=0.0)
+    parser.add_argument("--target-budget-weight", type=float, default=0.0)
     parser.add_argument("--spike-cost-mode", choices=["raw", "gated", "mixed"], default="gated")
     parser.add_argument("--hard-prefix-eval", action="store_true")
     parser.add_argument("--hard-prefix-unscaled", action="store_true")
@@ -97,12 +101,37 @@ def select_spike_cost(output: dict[str, Any], mode: str) -> torch.Tensor:
     raise ValueError(f"Unknown spike cost mode: {mode}")
 
 
+def hard_budget_terms(
+    args: argparse.Namespace,
+    model: nn.Module,
+    output: dict[str, Any],
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    logits = output["logits"]
+    assert isinstance(logits, torch.Tensor)
+    zero = logits.new_tensor(0.0)
+    if args.model == "fixed_lif" or not hasattr(model, "hard_budget_proxy"):
+        return zero, zero, zero
+
+    hard_budget_proxy = model.hard_budget_proxy(
+        gate_threshold=args.gate_threshold,
+        sharpness=args.hard_budget_sharpness,
+    )
+    assert isinstance(hard_budget_proxy, torch.Tensor)
+    hard_budget_cost = hard_budget_proxy / float(args.tmax)
+    target_budget_loss = zero
+    if args.target_timestep > 0.0 and args.target_budget_weight > 0.0:
+        target = hard_budget_proxy.new_tensor(args.target_timestep)
+        target_budget_loss = torch.relu(hard_budget_proxy - target) / float(args.tmax)
+    return hard_budget_cost, target_budget_loss, hard_budget_proxy
+
+
 def regularized_loss(
     args: argparse.Namespace,
+    model: nn.Module,
     output: dict[str, Any],
     target: torch.Tensor,
     reg_scale: float,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     logits = output["logits"]
     assert isinstance(logits, torch.Tensor)
     ce_loss = F.cross_entropy(logits, target)
@@ -110,11 +139,18 @@ def regularized_loss(
     effective_timestep = output["effective_timestep"]
     assert isinstance(effective_timestep, torch.Tensor)
     time_cost = effective_timestep / float(args.tmax)
+    hard_budget_cost, target_budget_loss, hard_budget_proxy = hard_budget_terms(args, model, output)
     if args.model == "fixed_lif":
         total = ce_loss
     else:
-        total = ce_loss + reg_scale * args.lambda_spike * spike_cost + reg_scale * args.eta_time * time_cost
-    return total, ce_loss, spike_cost, time_cost
+        total = (
+            ce_loss
+            + reg_scale * args.lambda_spike * spike_cost
+            + reg_scale * args.eta_time * time_cost
+            + reg_scale * args.lambda_hard_budget * hard_budget_cost
+            + reg_scale * args.target_budget_weight * target_budget_loss
+        )
+    return total, ce_loss, spike_cost, time_cost, hard_budget_cost, target_budget_loss, hard_budget_proxy
 
 
 def train_one_epoch(
@@ -134,6 +170,9 @@ def train_one_epoch(
         "consistency_loss",
         "spike_cost",
         "time_cost",
+        "hard_budget_cost",
+        "target_budget_loss",
+        "hard_budget_proxy",
         "acc",
         "acc_hard",
         "raw_spike_rate",
@@ -157,8 +196,8 @@ def train_one_epoch(
             if use_s2h:
                 # The hard-prefix pass uses non-differentiable binary prefix decisions.
                 # Therefore, hard CE and consistency mainly train the network weights to be
-                # robust under hard-prefix inference. The soft gate and time regularization
-                # remain the differentiable path for learning timestep budgets.
+                # robust under hard-prefix inference. The soft gate and time/hard-budget
+                # regularizers remain the differentiable path for learning timestep budgets.
                 hard_output = model(
                     images,
                     mode="hard_prefix",
@@ -183,16 +222,21 @@ def train_one_epoch(
                 effective_timestep = soft_output["effective_timestep"]
                 assert isinstance(effective_timestep, torch.Tensor)
                 time_cost = effective_timestep / float(args.tmax)
+                hard_budget_cost, target_budget_loss, hard_budget_proxy = hard_budget_terms(args, model, soft_output)
                 total = (
                     ce_soft
                     + args.hard_ce_weight * ce_hard
                     + args.consistency_weight * consistency
                     + reg_scale * args.lambda_spike * spike_cost
                     + reg_scale * args.eta_time * time_cost
+                    + reg_scale * args.lambda_hard_budget * hard_budget_cost
+                    + reg_scale * args.target_budget_weight * target_budget_loss
                 )
             else:
                 hard_output = None
-                total, ce_soft, spike_cost, time_cost = regularized_loss(args, soft_output, target, reg_scale)
+                total, ce_soft, spike_cost, time_cost, hard_budget_cost, target_budget_loss, hard_budget_proxy = regularized_loss(
+                    args, model, soft_output, target, reg_scale
+                )
                 ce_hard = images.new_tensor(0.0)
                 consistency = images.new_tensor(0.0)
 
@@ -209,6 +253,9 @@ def train_one_epoch(
         meters["consistency_loss"].update(consistency.detach().item(), batch_size)
         meters["spike_cost"].update(spike_cost.detach().item(), batch_size)
         meters["time_cost"].update(time_cost.detach().item(), batch_size)
+        meters["hard_budget_cost"].update(hard_budget_cost.detach().item(), batch_size)
+        meters["target_budget_loss"].update(target_budget_loss.detach().item(), batch_size)
+        meters["hard_budget_proxy"].update(hard_budget_proxy.detach().item(), batch_size)
         meters["acc"].update(accuracy(soft_logits.detach(), target), batch_size)
         if hard_output is not None:
             hard_logits = hard_output["logits"]
@@ -308,10 +355,50 @@ def tensor_tree_to_python(value: Any) -> Any:
     return value
 
 
-def snapshot_model_state(model: nn.Module) -> dict[str, Any]:
+def snapshot_model_state(model: nn.Module, args: argparse.Namespace) -> dict[str, Any]:
+    state: dict[str, Any] = {"timestep_gates": []}
     if hasattr(model, "timestep_gates"):
-        return {"timestep_gates": tensor_tree_to_python(model.timestep_gates())}
-    return {"timestep_gates": []}
+        state["timestep_gates"] = tensor_tree_to_python(model.timestep_gates())
+    if hasattr(model, "hard_prefix_masks"):
+        state["hard_prefix_masks"] = tensor_tree_to_python(
+            model.hard_prefix_masks(
+                gate_threshold=args.gate_threshold,
+                min_prefix_steps=args.min_prefix_steps,
+                dependency_constrained_prefix=args.dependency_constrained_prefix,
+            )
+        )
+    else:
+        state["hard_prefix_masks"] = []
+    if hasattr(model, "hard_prefix_steps"):
+        state["hard_prefix_steps"] = tensor_tree_to_python(
+            model.hard_prefix_steps(
+                gate_threshold=args.gate_threshold,
+                min_prefix_steps=args.min_prefix_steps,
+                dependency_constrained_prefix=args.dependency_constrained_prefix,
+            )
+        )
+    else:
+        state["hard_prefix_steps"] = {}
+    if hasattr(model, "hard_budget_proxy_details"):
+        state["hard_budget_proxy"] = tensor_tree_to_python(
+            model.hard_budget_proxy_details(
+                gate_threshold=args.gate_threshold,
+                sharpness=args.hard_budget_sharpness,
+            )
+        )
+    else:
+        state["hard_budget_proxy"] = 0.0
+    return state
+
+
+def format_tree(value: Any) -> str:
+    if isinstance(value, dict):
+        return ", ".join(f"{key}={format_tree(item)}" for key, item in value.items())
+    if isinstance(value, list):
+        return "[" + ", ".join(f"{float(item):.4f}" for item in value) + "]"
+    if isinstance(value, (int, float)):
+        return f"{float(value):.4f}"
+    return str(value)
 
 
 def main() -> None:
@@ -347,6 +434,9 @@ def main() -> None:
             "train_consistency_loss": train_metrics["consistency_loss"],
             "train_spike_cost": train_metrics["spike_cost"],
             "train_time_cost": train_metrics["time_cost"],
+            "train_hard_budget_cost": train_metrics["hard_budget_cost"],
+            "train_target_budget_loss": train_metrics["target_budget_loss"],
+            "train_hard_budget_proxy": train_metrics["hard_budget_proxy"],
             "train_acc_soft": train_metrics["acc"],
             "train_acc_hard": train_metrics["acc_hard"],
             **last_eval,
@@ -360,7 +450,7 @@ def main() -> None:
             f"energy proxy {last_eval['energy_proxy']:.4f} | loop proxy {last_eval['loop_energy_proxy']:.4f}"
         )
 
-    model_state = snapshot_model_state(model)
+    model_state = snapshot_model_state(model, args)
     summary = {
         "run_name": run_name,
         "model": args.model,
@@ -388,6 +478,10 @@ def main() -> None:
     print(f"Energy proxy: {summary['energy_proxy']:.6f}")
     print(f"Prefix energy proxy: {summary['prefix_energy_proxy']:.6f}")
     print(f"Loop energy proxy: {summary['loop_energy_proxy']:.6f}")
+    print("Final timestep gates:", format_tree(model_state["timestep_gates"]))
+    print("Final hard prefix masks:", format_tree(model_state["hard_prefix_masks"]))
+    print("Final hard prefix steps:", format_tree(model_state["hard_prefix_steps"]))
+    print("Hard budget proxy:", format_tree(model_state["hard_budget_proxy"]))
     print(f"Saved results to: {run_dir}")
 
 

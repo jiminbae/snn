@@ -25,7 +25,7 @@ This repository is focused on timestep skipping and prefix timestep budget learn
 - Hard-prefix timestep skipping: evaluation can run only active prefix timesteps.
 - Layer-wise hard-prefix semantics: if an upstream layer is skipped at a timestep, downstream layers receive zero new input but may continue membrane updates if active. `--dependency-constrained-prefix` enforces downstream activity only when upstream layers are also active.
 - Unscaled hard-prefix inference: `--hard-prefix-unscaled` uses binary spikes on active prefix timesteps.
-- Soft-to-hard consistency training: S2H models train soft and hard-prefix passes together. The hard-prefix pass uses non-differentiable binary prefix decisions, so hard CE and consistency train weights for robustness; soft gates and time regularization remain the differentiable path for learning budgets.
+- Soft-to-hard consistency training: S2H models train soft and hard-prefix passes together. The hard-prefix pass uses non-differentiable binary prefix decisions, so hard CE and consistency train weights for robustness; soft gates and time/hard-budget regularizers remain the differentiable path for learning budgets.
 - Layer-wise timestep budgets: layer-wise models learn separate budgets for each spiking layer.
 - Energy proxy only: reported values are not measured hardware power.
 
@@ -51,10 +51,49 @@ If CUDA is unavailable, the script falls back to CPU.
 python train.py   --model global_chronoskip_s2h   --dataset fashionmnist   --epochs 20   --batch-size 256   --tmax 8   --gate-init 5.0   --lambda-spike 0.05   --eta-time 0.02   --spike-cost-mode gated   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --hard-ce-weight 0.5   --consistency-weight 0.1   --reg-warmup-epochs 5   --device cuda   --amp
 ```
 
+## Threshold-Aware Hard Budget Loss
+
+The original soft time loss penalizes the sum of gate values, but it may not push gates below the hard-prefix threshold. ChronoSkip therefore supports a threshold-aware hard budget proxy:
+
+```text
+hard_budget_proxy = sum(sigmoid(k * (gate - threshold)))
+```
+
+This differentiable proxy penalizes timesteps whose gates remain above the hard-prefix threshold and helps convert soft gate reduction into actual hard-prefix timestep skipping. For layer-wise models, the proxy is averaged across layer 1 and layer 2 for the loss and target comparison.
+
+Options:
+
+- `--lambda-hard-budget`: weight for the threshold-aware hard budget proxy.
+- `--hard-budget-sharpness`: sigmoid sharpness `k`.
+- `--target-timestep`: optional target budget; `0.0` disables target pressure.
+- `--target-budget-weight`: optional weight for penalizing proxy budget above the target.
+
+Suggested diagnostic command:
+
+```bash
+python train.py \
+  --model global_chronoskip_s2h \
+  --dataset fashionmnist \
+  --epochs 5 \
+  --batch-size 1024 \
+  --device cuda \
+  --amp \
+  --hard-prefix-eval \
+  --hard-prefix-unscaled \
+  --gate-init 4.0 \
+  --eta-time 0.05 \
+  --lambda-hard-budget 0.05 \
+  --hard-budget-sharpness 20.0 \
+  --target-timestep 6 \
+  --target-budget-weight 0.05
+```
+
+This is still a proxy and not measured hardware energy. The hard-prefix mask remains non-differentiable; the threshold-aware budget loss is a differentiable surrogate that pressures gates toward crossing the threshold.
+
 ## Main Experiment Suite
 
 ```bash
-python run_chronoskip_experiments.py   --dataset fashionmnist   --epochs 20   --batch-size 2048   --device cuda   --amp   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --gate-init 5.0
+python run_chronoskip_experiments.py   --dataset fashionmnist   --epochs 20   --batch-size 2048   --device cuda   --amp   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --gate-init 5.0   --lambda-hard-budget 0.05   --target-timestep 6   --target-budget-weight 0.05
 ```
 
 The suite runs:
@@ -70,6 +109,14 @@ The suite runs:
 - `layerwise_chronoskip_s2h_T8`
 
 The comparison CSV is saved to `results/comparison.csv`.
+
+## Hard-Budget Diagnostics
+
+```bash
+python run_chronoskip_diagnostics.py   --dataset fashionmnist   --epochs 5   --batch-size 1024   --device cuda   --amp
+```
+
+The diagnostic sweep focuses on hard timestep reduction across global and layer-wise S2H models with different `--lambda-hard-budget` values. It saves its comparison table to `results/diagnostics_hard_budget/comparison.csv`.
 
 ## Metrics
 
@@ -100,6 +147,9 @@ Logged metrics include:
 - `energy_proxy`
 - `prefix_energy_proxy`
 - `loop_energy_proxy`
+- `train_hard_budget_cost`
+- `train_target_budget_loss`
+- `train_hard_budget_proxy`
 
 Energy proxy definitions:
 
@@ -109,7 +159,7 @@ prefix_energy_proxy = prefix_spike_rate * hard_effective_timestep
 loop_energy_proxy = prefix_spike_rate * executed_timestep
 ```
 
-`prefix_spike_rate` is actual executed-prefix spike activity only when hard-prefix evaluation is enabled. In soft-only runs, it is a compatibility field equal to the soft gated spike activity. `prefix_energy_proxy` uses the average hard layer budget, while `loop_energy_proxy` uses the recurrent loop count actually executed. These are proxy metrics for comparing spike activity and active timestep budgets. They are not actual hardware energy measurements.
+`prefix_spike_rate` is actual executed-prefix spike activity only when hard-prefix evaluation is enabled. In soft-only runs, it is a compatibility field equal to the soft gated spike activity. `prefix_energy_proxy` uses the average hard layer budget, while `loop_energy_proxy` uses the recurrent loop count actually executed. `summary.json` also stores `timestep_gates`, `hard_prefix_masks`, `hard_prefix_steps`, and `hard_budget_proxy` so threshold-crossing behavior can be diagnosed directly. These are proxy metrics for comparing spike activity and active timestep budgets. They are not actual hardware energy measurements.
 
 ## Scientific Comparisons
 

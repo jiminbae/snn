@@ -157,6 +157,73 @@ class ChronoSkipSNN(nn.Module):
             active = torch.maximum(active, forced)
         return active
 
+    def _hard_budget_proxy_from_gates(self, gates: Tensor, gate_threshold: float, sharpness: float) -> Tensor:
+        soft_active = torch.sigmoid(float(sharpness) * (gates - float(gate_threshold)))
+        return soft_active.sum()
+
+    def hard_budget_proxy_details(
+        self,
+        gate_threshold: float = 0.5,
+        sharpness: float = 20.0,
+    ) -> dict[str, Tensor]:
+        g1, g2 = self._gate_pair()
+        proxy1 = self._hard_budget_proxy_from_gates(g1, gate_threshold, sharpness)
+        if self.is_layerwise:
+            proxy2 = self._hard_budget_proxy_from_gates(g2, gate_threshold, sharpness)
+            return {
+                "layer1": proxy1,
+                "layer2": proxy2,
+                "average": (proxy1 + proxy2) / 2.0,
+            }
+        return {"global": proxy1}
+
+    def hard_budget_proxy(
+        self,
+        gate_threshold: float = 0.5,
+        sharpness: float = 20.0,
+    ) -> Tensor:
+        details = self.hard_budget_proxy_details(gate_threshold=gate_threshold, sharpness=sharpness)
+        if self.is_layerwise:
+            return details["average"]
+        return details["global"]
+
+    def hard_prefix_masks(
+        self,
+        gate_threshold: float = 0.5,
+        min_prefix_steps: int = 1,
+        dependency_constrained_prefix: bool = False,
+    ) -> Tensor | dict[str, Tensor]:
+        g1, g2 = self._gate_pair()
+        mask1 = self._hard_mask(g1, gate_threshold, min_prefix_steps)
+        if not self.is_layerwise:
+            return mask1
+        mask2 = self._hard_mask(g2, gate_threshold, min_prefix_steps)
+        if dependency_constrained_prefix:
+            mask2 = mask2 * mask1
+        return {"layer1": mask1, "layer2": mask2}
+
+    def hard_prefix_steps(
+        self,
+        gate_threshold: float = 0.5,
+        min_prefix_steps: int = 1,
+        dependency_constrained_prefix: bool = False,
+    ) -> dict[str, Tensor]:
+        masks = self.hard_prefix_masks(
+            gate_threshold=gate_threshold,
+            min_prefix_steps=min_prefix_steps,
+            dependency_constrained_prefix=dependency_constrained_prefix,
+        )
+        if isinstance(masks, dict):
+            steps1 = masks["layer1"].sum()
+            steps2 = masks["layer2"].sum()
+            return {
+                "layer1": steps1,
+                "layer2": steps2,
+                "average": (steps1 + steps2) / 2.0,
+                "executed": torch.maximum(steps1, steps2),
+            }
+        return {"global": masks.sum()}
+
     def forward(
         self,
         x: Tensor,
