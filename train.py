@@ -38,6 +38,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tmax", type=int, default=8)
     parser.add_argument("--event-frame-mode", choices=["binary", "count"], default="binary")
     parser.add_argument("--event-downsample-size", type=int, default=None)
+    parser.add_argument("--temporal-prefix-steps", type=int, default=0)
+    parser.add_argument("--temporal-prefix-mode", choices=["none", "zero", "truncate"], default="none")
     parser.add_argument("--gate-init", type=float, default=5.0)
     parser.add_argument("--lambda-spike", type=float, default=0.05)
     parser.add_argument("--eta-time", type=float, default=0.02)
@@ -194,7 +196,14 @@ def train_one_epoch(
 
         optimizer.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast(enabled=amp_enabled):
-            soft_output = model(images, mode="soft", gate_threshold=args.gate_threshold, min_prefix_steps=args.min_prefix_steps)
+            soft_output = model(
+                images,
+                mode="soft",
+                gate_threshold=args.gate_threshold,
+                min_prefix_steps=args.min_prefix_steps,
+                temporal_prefix_steps=args.temporal_prefix_steps,
+                temporal_prefix_mode=args.temporal_prefix_mode,
+            )
             if use_s2h:
                 # The hard-prefix pass uses non-differentiable binary prefix decisions.
                 # Therefore, hard CE and consistency mainly train the network weights to be
@@ -207,6 +216,8 @@ def train_one_epoch(
                     hard_prefix_unscaled=True,
                     min_prefix_steps=args.min_prefix_steps,
                     dependency_constrained_prefix=args.dependency_constrained_prefix,
+                    temporal_prefix_steps=args.temporal_prefix_steps,
+                    temporal_prefix_mode=args.temporal_prefix_mode,
                 )
                 soft_logits = soft_output["logits"]
                 hard_logits = hard_output["logits"]
@@ -300,7 +311,14 @@ def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torc
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        soft_output = model(images, mode="soft", gate_threshold=args.gate_threshold, min_prefix_steps=args.min_prefix_steps)
+        soft_output = model(
+            images,
+            mode="soft",
+            gate_threshold=args.gate_threshold,
+            min_prefix_steps=args.min_prefix_steps,
+            temporal_prefix_steps=args.temporal_prefix_steps,
+            temporal_prefix_mode=args.temporal_prefix_mode,
+        )
         eval_output = soft_output
         hard_acc_value = 0.0
         if args.hard_prefix_eval:
@@ -311,6 +329,8 @@ def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torc
                 hard_prefix_unscaled=args.hard_prefix_unscaled,
                 min_prefix_steps=args.min_prefix_steps,
                 dependency_constrained_prefix=args.dependency_constrained_prefix,
+                temporal_prefix_steps=args.temporal_prefix_steps,
+                temporal_prefix_mode=args.temporal_prefix_mode,
             )
             hard_logits = eval_output["logits"]
             assert isinstance(hard_logits, torch.Tensor)

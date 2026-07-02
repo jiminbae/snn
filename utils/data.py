@@ -79,16 +79,27 @@ class EventFrameTransform:
         tmax: int,
         frame_mode: str,
         downsample_size: int | None,
+        expected_channels: int,
     ) -> None:
         if frame_mode not in {"binary", "count"}:
             raise ValueError(f"Unsupported event_frame_mode: {frame_mode}")
         tonic = _require_tonic("event")
         self.to_frame = tonic.transforms.ToFrame(sensor_size=sensor_size, n_time_bins=tmax)
+        self.tmax = tmax
         self.frame_mode = frame_mode
         self.downsample_size = downsample_size
+        self.expected_channels = expected_channels
 
     def __call__(self, events: object) -> torch.Tensor:
         frames = torch.as_tensor(self.to_frame(events), dtype=torch.float32)
+        if frames.ndim != 4:
+            raise ValueError(f"Expected event frames [T,C,H,W], got {tuple(frames.shape)}")
+        if frames.shape[0] != self.tmax:
+            raise ValueError(f"Expected {self.tmax} time bins, got {frames.shape[0]}")
+        if frames.shape[1] != self.expected_channels:
+            raise ValueError(
+                f"Expected {self.expected_channels} polarity channels at axis 1, got shape {tuple(frames.shape)}"
+            )
         if self.frame_mode == "binary":
             frames = (frames > 0).to(torch.float32)
         if self.downsample_size is not None and frames.shape[-2:] != (self.downsample_size, self.downsample_size):
@@ -113,6 +124,8 @@ def _build_event_datasets(
 ):
     tonic = _require_tonic(dataset)
     name = canonical_dataset_name(dataset)
+    spec = get_dataset_spec(name)
+    expected_channels = int(spec["input_channels"])
     if name == "nmnist":
         dataset_cls = tonic.datasets.NMNIST
         sensor_size = dataset_cls.sensor_size
@@ -129,6 +142,7 @@ def _build_event_datasets(
         tmax=tmax,
         frame_mode=event_frame_mode,
         downsample_size=downsample_size,
+        expected_channels=expected_channels,
     )
     train_set = dataset_cls(save_to=data_dir, train=True, transform=transform)
     test_set = dataset_cls(save_to=data_dir, train=False, transform=transform)

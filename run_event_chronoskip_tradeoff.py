@@ -14,6 +14,10 @@ FIELDNAMES = [
     "Run",
     "Dataset",
     "Model",
+    "Baseline Type",
+    "Base Tmax",
+    "Temporal Prefix Mode",
+    "Temporal Prefix Steps",
     "Accuracy",
     "Soft Accuracy",
     "Hard Accuracy",
@@ -44,7 +48,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--results-dir", default="results/event_chronoskip_tradeoff")
-    parser.add_argument("--tmax", type=int, default=8)
+    parser.add_argument("--base-tmax", type=int, default=8)
+    parser.add_argument("--tmax", type=int, default=None, help="Alias for --base-tmax.")
     parser.add_argument("--event-frame-mode", choices=["binary", "count"], default="binary")
     parser.add_argument("--event-downsample-size", type=int, default=None)
     parser.add_argument("--lambda-spike", type=float, default=0.05)
@@ -77,11 +82,41 @@ def compact_json(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
 
-def row_from_summary(label: str, model: str, dataset: str, summary: dict[str, Any]) -> dict[str, Any]:
+def prefix_steps_value(config: dict[str, Any], summary: dict[str, Any]) -> Any:
+    steps = summary.get("hard_prefix_steps", {})
+    if steps:
+        return steps
+    if config["baseline_type"] == "fixed_prefix":
+        value = float(config.get("temporal_prefix_steps", 0))
+        return {"global": value}
+    if config["baseline_type"] == "fixed_rebin":
+        value = float(config.get("tmax", 0))
+        return {"global": value}
+    return {}
+
+
+def prefix_masks_value(config: dict[str, Any], summary: dict[str, Any]) -> Any:
+    masks = summary.get("hard_prefix_masks", [])
+    if masks:
+        return masks
+    tmax = int(config.get("tmax", 0))
+    if config["baseline_type"] == "fixed_prefix":
+        steps = int(config.get("temporal_prefix_steps", 0))
+        return [1.0 if idx < steps else 0.0 for idx in range(tmax)]
+    if config["baseline_type"] == "fixed_rebin":
+        return [1.0 for _ in range(tmax)]
+    return []
+
+
+def row_from_summary(label: str, config: dict[str, Any], dataset: str, summary: dict[str, Any]) -> dict[str, Any]:
     return {
         "Run": label,
         "Dataset": dataset,
-        "Model": model,
+        "Model": config["model"],
+        "Baseline Type": config["baseline_type"],
+        "Base Tmax": config["base_tmax"],
+        "Temporal Prefix Mode": config.get("temporal_prefix_mode", "none"),
+        "Temporal Prefix Steps": config.get("temporal_prefix_steps", 0),
         "Accuracy": summary.get("test_accuracy", summary.get("test_acc", 0.0)),
         "Soft Accuracy": summary.get("soft_acc", 0.0),
         "Hard Accuracy": summary.get("hard_acc", 0.0),
@@ -97,53 +132,131 @@ def row_from_summary(label: str, model: str, dataset: str, summary: dict[str, An
         "Prefix Energy Proxy": summary.get("prefix_energy_proxy", 0.0),
         "Loop Energy Proxy": summary.get("loop_energy_proxy", 0.0),
         "Hard Budget Proxy": hard_budget_proxy_value(summary),
-        "Hard Prefix Steps": compact_json(summary.get("hard_prefix_steps", {})),
-        "Hard Prefix Masks": compact_json(summary.get("hard_prefix_masks", [])),
+        "Hard Prefix Steps": compact_json(prefix_steps_value(config, summary)),
+        "Hard Prefix Masks": compact_json(prefix_masks_value(config, summary)),
     }
+
+
+def build_suite(base_tmax: int) -> list[tuple[str, dict[str, Any]]]:
+    suite: list[tuple[str, dict[str, Any]]] = []
+    for t in (8, 6, 4, 3):
+        suite.append(
+            (
+                f"fixed_rebin_T{t}",
+                {
+                    "model": "fixed_lif",
+                    "baseline_type": "fixed_rebin",
+                    "tmax": t,
+                    "base_tmax": t,
+                    "temporal_prefix_mode": "none",
+                    "temporal_prefix_steps": 0,
+                },
+            )
+        )
+    for t in (6, 4, 3):
+        suite.append(
+            (
+                f"fixed_prefix_T{t}",
+                {
+                    "model": "fixed_lif",
+                    "baseline_type": "fixed_prefix",
+                    "tmax": base_tmax,
+                    "base_tmax": base_tmax,
+                    "temporal_prefix_mode": "truncate",
+                    "temporal_prefix_steps": t,
+                },
+            )
+        )
+    suite.extend(
+        [
+            (
+                "global_chronoskip_s2h_T6target",
+                {
+                    "model": "global_chronoskip_s2h",
+                    "baseline_type": "chronoskip",
+                    "tmax": base_tmax,
+                    "base_tmax": base_tmax,
+                    "gate_init": 2.5,
+                    "target_timestep": 6,
+                    "lambda_hard_budget": 0.05,
+                    "temporal_prefix_mode": "none",
+                    "temporal_prefix_steps": 0,
+                },
+            ),
+            (
+                "layerwise_chronoskip_s2h_dep_T6target",
+                {
+                    "model": "layerwise_chronoskip_s2h",
+                    "baseline_type": "chronoskip",
+                    "tmax": base_tmax,
+                    "base_tmax": base_tmax,
+                    "gate_init": 2.5,
+                    "target_timestep": 6,
+                    "lambda_hard_budget": 0.05,
+                    "dependency_constrained_prefix": True,
+                    "temporal_prefix_mode": "none",
+                    "temporal_prefix_steps": 0,
+                },
+            ),
+            (
+                "global_chronoskip_s2h_T4target",
+                {
+                    "model": "global_chronoskip_s2h",
+                    "baseline_type": "chronoskip",
+                    "tmax": base_tmax,
+                    "base_tmax": base_tmax,
+                    "gate_init": 2.0,
+                    "target_timestep": 4,
+                    "lambda_hard_budget": 0.05,
+                    "temporal_prefix_mode": "none",
+                    "temporal_prefix_steps": 0,
+                },
+            ),
+            (
+                "layerwise_chronoskip_s2h_dep_T4target",
+                {
+                    "model": "layerwise_chronoskip_s2h",
+                    "baseline_type": "chronoskip",
+                    "tmax": base_tmax,
+                    "base_tmax": base_tmax,
+                    "gate_init": 2.0,
+                    "target_timestep": 4,
+                    "lambda_hard_budget": 0.05,
+                    "dependency_constrained_prefix": True,
+                    "temporal_prefix_mode": "none",
+                    "temporal_prefix_steps": 0,
+                },
+            ),
+        ]
+    )
+    return suite
 
 
 def main() -> None:
     args = parse_args()
+    base_tmax = args.base_tmax if args.tmax is None else args.tmax
     root = Path(__file__).resolve().parent
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    suite = [
-        ("fixed_lif_T8", "fixed_lif", 8, {}),
-        ("fixed_lif_T6", "fixed_lif", 6, {}),
-        ("fixed_lif_T4", "fixed_lif", 4, {}),
-        ("fixed_lif_T3", "fixed_lif", 3, {}),
-        ("global_chronoskip_s2h_T6target", "global_chronoskip_s2h", args.tmax, {"gate_init": 2.5, "target_timestep": 6, "lambda_hard_budget": 0.05}),
-        (
-            "layerwise_chronoskip_s2h_dep_T6target",
-            "layerwise_chronoskip_s2h",
-            args.tmax,
-            {"gate_init": 2.5, "target_timestep": 6, "lambda_hard_budget": 0.05, "dependency_constrained_prefix": True},
-        ),
-        ("global_chronoskip_s2h_T4target", "global_chronoskip_s2h", args.tmax, {"gate_init": 2.0, "target_timestep": 4, "lambda_hard_budget": 0.05}),
-        (
-            "layerwise_chronoskip_s2h_dep_T4target",
-            "layerwise_chronoskip_s2h",
-            args.tmax,
-            {"gate_init": 2.0, "target_timestep": 4, "lambda_hard_budget": 0.05, "dependency_constrained_prefix": True},
-        ),
-    ]
     rows: list[dict[str, Any]] = []
 
-    for label, model_name, tmax, config in suite:
+    for label, config in build_suite(base_tmax):
         run_name = f"event_{timestamp}_{label}"
         cmd = [
             sys.executable,
             str(root / "train.py"),
-            "--model", model_name,
+            "--model", config["model"],
             "--dataset", args.dataset,
             "--epochs", str(args.epochs),
             "--batch-size", str(args.batch_size),
-            "--tmax", str(tmax),
+            "--tmax", str(config["tmax"]),
             "--device", args.device,
             "--seed", str(args.seed),
             "--data-dir", args.data_dir,
             "--results-dir", args.results_dir,
             "--run-name", run_name,
             "--event-frame-mode", args.event_frame_mode,
+            "--temporal-prefix-mode", config.get("temporal_prefix_mode", "none"),
+            "--temporal-prefix-steps", str(config.get("temporal_prefix_steps", 0)),
             "--gate-init", str(config.get("gate_init", 2.5)),
             "--lambda-spike", str(args.lambda_spike),
             "--eta-time", str(args.eta_time),
@@ -172,7 +285,7 @@ def main() -> None:
         print(f"\nRunning {label}: {' '.join(cmd)}")
         subprocess.run(cmd, cwd=root, check=True)
         summary = load_summary(root / args.results_dir / run_name / "summary.json")
-        rows.append(row_from_summary(label, model_name, args.dataset, summary))
+        rows.append(row_from_summary(label, config, args.dataset, summary))
 
     comparison_path = root / args.results_dir / "comparison.csv"
     comparison_path.parent.mkdir(parents=True, exist_ok=True)

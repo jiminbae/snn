@@ -84,18 +84,24 @@ python train.py \
   --target-budget-weight 0.05
 ```
 
-Event dataset results should be compared against fixed shorter-T baselines at matched executed timesteps. Do not claim ChronoSkip is better unless it beats or matches fixed-T baselines at similar timestep budgets.
+For event datasets, there are two fixed timestep baselines:
+
+1. `fixed_rebin_Tk`: the entire event stream is rebinned into `k` frames. This evaluates coarse temporal rebinning.
+2. `fixed_prefix_Tk`: the event stream is first binned into `base_tmax` frames, then only the first `k` frames are executed. This is the fixed-prefix baseline for ChronoSkip hard-prefix inference.
+
+ChronoSkip should primarily be compared against `fixed_prefix_Tk` at matched executed timesteps. `fixed_rebin_Tk` is still useful as an additional baseline, but it answers a different question because it compresses the full event duration into fewer bins.
 
 ```bash
 python run_event_chronoskip_tradeoff.py \
   --dataset nmnist \
   --epochs 10 \
   --batch-size 256 \
+  --base-tmax 8 \
   --device cuda \
   --amp
 ```
 
-The tradeoff script writes `results/event_chronoskip_tradeoff/comparison.csv`.
+The tradeoff script writes `results/event_chronoskip_tradeoff/comparison.csv`. Do not claim ChronoSkip beats fixed shorter-T baselines unless it beats or matches `fixed_prefix_Tk` at similar executed timestep budgets.
 
 ## Threshold-Aware Hard Budget Loss
 

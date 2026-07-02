@@ -63,8 +63,26 @@ class FixedLIFSNN(nn.Module):
         self.config = LIFConfig(v_th=v_th, tau=tau)
         self.surrogate_scale = surrogate_scale
 
-    def forward(self, x: Tensor, **_: object) -> dict[str, Tensor | dict[str, Tensor]]:
+    def forward(
+        self,
+        x: Tensor,
+        *,
+        temporal_prefix_steps: int = 0,
+        temporal_prefix_mode: str = "none",
+        **_: object,
+    ) -> dict[str, Tensor | dict[str, Tensor]]:
         _validate_input(x, self.tmax)
+        if temporal_prefix_mode not in {"none", "zero", "truncate"}:
+            raise ValueError(f"Unknown temporal_prefix_mode: {temporal_prefix_mode}")
+        if temporal_prefix_steps < 0 or temporal_prefix_steps > self.tmax:
+            raise ValueError(f"temporal_prefix_steps must be in [0, {self.tmax}], got {temporal_prefix_steps}.")
+        use_temporal_prefix = x.ndim == 5 and temporal_prefix_mode != "none" and temporal_prefix_steps > 0
+        steps_to_run = self.tmax
+        if x.ndim == 5 and temporal_prefix_mode == "truncate" and temporal_prefix_steps > 0:
+            if temporal_prefix_steps < 1:
+                raise ValueError("temporal_prefix_steps must be at least 1 for truncate mode.")
+            steps_to_run = int(temporal_prefix_steps)
+
         static_x1 = self.backbone.conv1(x) if x.ndim == 4 else None
         x1_template = static_x1 if static_x1 is not None else self.backbone.conv1(_frame_at(x, 0))
         u1 = _zeros_like(x1_template)
@@ -78,8 +96,11 @@ class FixedLIFSNN(nn.Module):
         logits_sum = x.new_zeros((x.shape[0], self.backbone.num_classes))
         spike_costs: list[Tensor] = []
 
-        for t in range(self.tmax):
-            x1_t = static_x1 if static_x1 is not None else self.backbone.conv1(_frame_at(x, t))
+        for t in range(steps_to_run):
+            frame_t = _frame_at(x, t)
+            if use_temporal_prefix and temporal_prefix_mode == "zero" and t >= temporal_prefix_steps:
+                frame_t = torch.zeros_like(frame_t)
+            x1_t = static_x1 if static_x1 is not None else self.backbone.conv1(frame_t)
             u1, s1 = lif_step(
                 x1_t,
                 u1,
@@ -102,11 +123,14 @@ class FixedLIFSNN(nn.Module):
             s1_prev, s2_prev = s1, s2
 
         spike_rate = torch.stack(spike_costs).mean()
-        timestep = x.new_tensor(float(self.tmax))
+        timestep = x.new_tensor(float(steps_to_run))
         gates = torch.ones(self.tmax, device=x.device, dtype=x.dtype)
+        if x.ndim == 5 and temporal_prefix_mode == "truncate" and temporal_prefix_steps > 0:
+            gates = torch.zeros(self.tmax, device=x.device, dtype=x.dtype)
+            gates[:steps_to_run] = 1.0
         layer_steps = {"layer1": timestep, "layer2": timestep}
         return {
-            "logits": logits_sum / float(self.tmax),
+            "logits": logits_sum / float(max(1, steps_to_run)),
             "raw_spike_rate": spike_rate,
             "gated_spike_rate": spike_rate,
             "spike_rate": spike_rate,
@@ -255,6 +279,8 @@ class ChronoSkipSNN(nn.Module):
         hard_prefix_unscaled: bool = False,
         min_prefix_steps: int = 1,
         dependency_constrained_prefix: bool = False,
+        temporal_prefix_steps: int = 0,
+        temporal_prefix_mode: str = "none",
     ) -> dict[str, Tensor | dict[str, Tensor]]:
         if mode not in {"soft", "hard_prefix"}:
             raise ValueError(f"Unknown forward mode: {mode}")

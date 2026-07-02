@@ -46,3 +46,41 @@ assert out["logits"].shape == (2, 10), out["logits"].shape
 assert "layer_hard_timesteps" in out
 print("synthetic layer-wise temporal forward OK")
 PY
+
+RUN_NMNIST_SMOKE=${RUN_NMNIST_SMOKE:-0}
+
+if [[ "$RUN_NMNIST_SMOKE" == "1" ]]; then
+  $PYTHON train.py \
+    --model global_chronoskip_s2h \
+    --dataset nmnist \
+    --epochs 1 \
+    --batch-size 16 \
+    --tmax 8 \
+    --device "$DEVICE" \
+    --amp \
+    --event-frame-mode binary \
+    --hard-prefix-eval \
+    --hard-prefix-unscaled \
+    --gate-init 2.5 \
+    --eta-time 0.05 \
+    --lambda-hard-budget 0.05 \
+    --hard-budget-sharpness 5.0 \
+    --target-timestep 6 \
+    --target-budget-weight 0.05 \
+    --limit-train-batches 2 \
+    --limit-test-batches 2
+
+  $PYTHON train.py \
+    --model fixed_lif \
+    --dataset nmnist \
+    --epochs 1 \
+    --batch-size 16 \
+    --tmax 8 \
+    --device "$DEVICE" \
+    --amp \
+    --event-frame-mode binary \
+    --temporal-prefix-mode truncate \
+    --temporal-prefix-steps 4 \
+    --limit-train-batches 2 \
+    --limit-test-batches 2
+fi
