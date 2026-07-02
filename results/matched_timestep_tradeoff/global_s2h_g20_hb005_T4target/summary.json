@@ -1,0 +1,49 @@
+{
+  "dataset": "fashionmnist",
+  "effective_timestep": 3.642956018447876,
+  "energy_proxy": 0.42325593438248443,
+  "executed_timestep": 3.0,
+  "gated_spike_rate": 0.11618475003242493,
+  "hard_acc": 87.76,
+  "hard_budget_proxy": {
+    "global": 3.5936779975891113
+  },
+  "hard_effective_timestep": 3.0,
+  "hard_prefix_masks": [
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "hard_prefix_steps": {
+    "global": 3.0
+  },
+  "layer1_effective_timestep": 3.642956018447876,
+  "layer1_hard_timestep": 3.0,
+  "layer2_effective_timestep": 3.642956018447876,
+  "layer2_hard_timestep": 3.0,
+  "loop_energy_proxy": 0.970746572971344,
+  "model": "global_chronoskip_s2h",
+  "prefix_energy_proxy": 0.970746572971344,
+  "prefix_spike_rate": 0.323582190990448,
+  "raw_spike_rate": 0.23259583606719972,
+  "run_name": "global_s2h_g20_hb005_T4target",
+  "soft_acc": 87.34,
+  "test_acc": 87.76,
+  "test_accuracy": 87.76,
+  "timestep_gates": [
+    0.8373937606811523,
+    0.7091864943504333,
+    0.5741862654685974,
+    0.46375954151153564,
+    0.361856609582901,
+    0.28578153252601624,
+    0.22893020510673523,
+    0.18186169862747192
+  ],
+  "tmax": 8
+}

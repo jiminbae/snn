@@ -1,0 +1,78 @@
+{
+  "dataset": "fashionmnist",
+  "effective_timestep": 3.761385917663574,
+  "energy_proxy": 0.44180771141895075,
+  "executed_timestep": 3.0,
+  "gated_spike_rate": 0.11745875618457795,
+  "hard_acc": 87.66,
+  "hard_budget_proxy": {
+    "average": 3.7111306190490723,
+    "layer1": 3.282606363296509,
+    "layer2": 4.139654636383057
+  },
+  "hard_effective_timestep": 3.0,
+  "hard_prefix_masks": {
+    "layer1": [
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "layer2": [
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "hard_prefix_steps": {
+    "average": 3.0,
+    "executed": 3.0,
+    "layer1": 3.0,
+    "layer2": 3.0
+  },
+  "layer1_effective_timestep": 3.343027353286743,
+  "layer1_hard_timestep": 3.0,
+  "layer2_effective_timestep": 4.179744243621826,
+  "layer2_hard_timestep": 3.0,
+  "loop_energy_proxy": 0.9776451946735382,
+  "model": "layerwise_chronoskip_s2h",
+  "prefix_energy_proxy": 0.9776451946735382,
+  "prefix_spike_rate": 0.32588173155784605,
+  "raw_spike_rate": 0.22462534258365632,
+  "run_name": "layerwise_s2h_dep_g20_hb005_T4target",
+  "soft_acc": 87.47,
+  "test_acc": 87.66,
+  "test_accuracy": 87.66,
+  "timestep_gates": {
+    "layer1": [
+      0.8018126487731934,
+      0.6455562114715576,
+      0.5148096680641174,
+      0.4094271957874298,
+      0.3263988494873047,
+      0.2617008686065674,
+      0.2117001712322235,
+      0.17162179946899414
+    ],
+    "layer2": [
+      0.8778179883956909,
+      0.7711074948310852,
+      0.6551449298858643,
+      0.5539013743400574,
+      0.4441172182559967,
+      0.35791900753974915,
+      0.2842397689819336,
+      0.23549656569957733
+    ]
+  },
+  "tmax": 8
+}
