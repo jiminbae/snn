@@ -27,6 +27,25 @@ def _stack_mean(values: list[Tensor], fallback: Tensor) -> Tensor:
     return torch.stack(values).mean() if values else fallback.new_tensor(0.0)
 
 
+def _validate_input(x: Tensor, tmax: int) -> None:
+    if x.ndim == 4:
+        return
+    if x.ndim == 5:
+        if x.shape[1] != tmax:
+            raise ValueError(f"Temporal input length {x.shape[1]} must match tmax={tmax}.")
+        return
+    raise ValueError(f"Expected input shape [B,C,H,W] or [B,T,C,H,W], got {tuple(x.shape)}.")
+
+
+def _frame_at(x: Tensor, t: int) -> Tensor:
+    if x.ndim == 4:
+        return x
+    if x.ndim == 5:
+        return x[:, t]
+    raise ValueError(f"Expected input shape [B,C,H,W] or [B,T,C,H,W], got {tuple(x.shape)}.")
+
+
+
 class FixedLIFSNN(nn.Module):
     """Fixed-timestep Conv-SNN baseline with one LIF setting."""
 
@@ -45,21 +64,24 @@ class FixedLIFSNN(nn.Module):
         self.surrogate_scale = surrogate_scale
 
     def forward(self, x: Tensor, **_: object) -> dict[str, Tensor | dict[str, Tensor]]:
-        x1 = self.backbone.conv1(x)
-        u1 = _zeros_like(x1)
-        s1_prev = _zeros_like(x1)
+        _validate_input(x, self.tmax)
+        static_x1 = self.backbone.conv1(x) if x.ndim == 4 else None
+        x1_template = static_x1 if static_x1 is not None else self.backbone.conv1(_frame_at(x, 0))
+        u1 = _zeros_like(x1_template)
+        s1_prev = _zeros_like(x1_template)
 
-        pooled1 = self.backbone.pool(x1)
+        pooled1 = self.backbone.pool(x1_template)
         x2_template = self.backbone.conv2(torch.zeros_like(pooled1))
         u2 = _zeros_like(x2_template)
         s2_prev = _zeros_like(x2_template)
 
-        logits_sum = x.new_zeros((x.shape[0], 10))
+        logits_sum = x.new_zeros((x.shape[0], self.backbone.num_classes))
         spike_costs: list[Tensor] = []
 
-        for _ in range(self.tmax):
+        for t in range(self.tmax):
+            x1_t = static_x1 if static_x1 is not None else self.backbone.conv1(_frame_at(x, t))
             u1, s1 = lif_step(
-                x1,
+                x1_t,
                 u1,
                 s1_prev,
                 v_th=self.config.v_th,
@@ -237,11 +259,13 @@ class ChronoSkipSNN(nn.Module):
         if mode not in {"soft", "hard_prefix"}:
             raise ValueError(f"Unknown forward mode: {mode}")
 
-        x1 = self.backbone.conv1(x)
-        u1 = _zeros_like(x1)
-        s1_prev = _zeros_like(x1)
+        _validate_input(x, self.tmax)
+        static_x1 = self.backbone.conv1(x) if x.ndim == 4 else None
+        x1_template = static_x1 if static_x1 is not None else self.backbone.conv1(_frame_at(x, 0))
+        u1 = _zeros_like(x1_template)
+        s1_prev = _zeros_like(x1_template)
 
-        pooled1 = self.backbone.pool(x1)
+        pooled1 = self.backbone.pool(x1_template)
         x2_template = self.backbone.conv2(torch.zeros_like(pooled1))
         u2 = _zeros_like(x2_template)
         s2_prev = _zeros_like(x2_template)
@@ -261,7 +285,7 @@ class ChronoSkipSNN(nn.Module):
         else:
             steps_to_run = int(torch.maximum(hard_steps1, hard_steps2).detach().cpu().item())
 
-        logits_sum = x.new_zeros((x.shape[0], 10))
+        logits_sum = x.new_zeros((x.shape[0], self.backbone.num_classes))
         raw_spike_costs: list[Tensor] = []
         gated_spike_costs: list[Tensor] = []
         prefix_spike_costs: list[Tensor] = []
@@ -277,8 +301,9 @@ class ChronoSkipSNN(nn.Module):
             l2_active = mode == "soft" or bool(hard_mask2[t].detach().cpu().item())
 
             if l1_active:
+                x1_t = static_x1 if static_x1 is not None else self.backbone.conv1(_frame_at(x, t))
                 u1, s1 = lif_step(
-                    x1,
+                    x1_t,
                     u1,
                     s1_prev,
                     v_th=self.config.v_th,

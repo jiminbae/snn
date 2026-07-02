@@ -51,6 +51,52 @@ If CUDA is unavailable, the script falls back to CPU.
 python train.py   --model global_chronoskip_s2h   --dataset fashionmnist   --epochs 20   --batch-size 256   --tmax 8   --gate-init 5.0   --lambda-spike 0.05   --eta-time 0.02   --spike-cost-mode gated   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --hard-ce-weight 0.5   --consistency-weight 0.1   --reg-warmup-epochs 5   --device cuda   --amp
 ```
 
+## Event / Temporal Datasets
+
+Static datasets use tensors shaped `[B, C, H, W]`; the same image is reused across SNN timesteps, preserving the original Fashion-MNIST/CIFAR-10 behavior. Event datasets use binned event frames shaped `[B, T, C, H, W]`; the model consumes `x[:, t]` at timestep `t`.
+
+ChronoSkip hard-prefix inference on event datasets actually skips later event frames, which is different from repeated-timestep evaluation on static images. This enables evaluation on datasets with real temporal structure.
+
+Supported event datasets:
+
+- `nmnist`
+- `dvs_gesture`
+
+Event datasets require `tonic`; install it through `requirements.txt`.
+
+```bash
+python train.py \
+  --model global_chronoskip_s2h \
+  --dataset nmnist \
+  --epochs 10 \
+  --batch-size 256 \
+  --tmax 8 \
+  --device cuda \
+  --amp \
+  --event-frame-mode binary \
+  --hard-prefix-eval \
+  --hard-prefix-unscaled \
+  --gate-init 2.5 \
+  --eta-time 0.05 \
+  --lambda-hard-budget 0.05 \
+  --hard-budget-sharpness 5.0 \
+  --target-timestep 6 \
+  --target-budget-weight 0.05
+```
+
+Event dataset results should be compared against fixed shorter-T baselines at matched executed timesteps. Do not claim ChronoSkip is better unless it beats or matches fixed-T baselines at similar timestep budgets.
+
+```bash
+python run_event_chronoskip_tradeoff.py \
+  --dataset nmnist \
+  --epochs 10 \
+  --batch-size 256 \
+  --device cuda \
+  --amp
+```
+
+The tradeoff script writes `results/event_chronoskip_tradeoff/comparison.csv`.
+
 ## Threshold-Aware Hard Budget Loss
 
 The original soft time loss penalizes the sum of gate values, but it may not push gates below the hard-prefix threshold. ChronoSkip therefore supports a threshold-aware hard budget proxy:

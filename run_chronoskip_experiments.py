@@ -34,9 +34,11 @@ FIELDNAMES = [
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the ChronoSkip experiment suite.")
-    parser.add_argument("--dataset", choices=["fashionmnist", "cifar10"], default="fashionmnist")
+    parser.add_argument("--dataset", choices=["fashionmnist", "cifar10", "nmnist", "dvs_gesture"], default="fashionmnist")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--event-frame-mode", choices=["binary", "count"], default="binary")
+    parser.add_argument("--event-downsample-size", type=int, default=None)
     parser.add_argument("--gate-init", type=float, default=5.0)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--amp", action="store_true")
@@ -143,6 +145,8 @@ def main() -> None:
             args.data_dir,
             "--run-name",
             run_name,
+            "--event-frame-mode",
+            args.event_frame_mode,
             "--gate-init",
             str(args.gate_init),
             "--lambda-spike",
@@ -170,6 +174,10 @@ def main() -> None:
             "--reg-warmup-epochs",
             str(args.reg_warmup_epochs),
         ]
+        if args.event_downsample_size is not None:
+            cmd.extend(["--event-downsample-size", str(args.event_downsample_size)])
+        elif args.dataset == "dvs_gesture":
+            cmd.extend(["--event-downsample-size", "64"])
         if args.amp:
             cmd.append("--amp")
         if args.hard_prefix_eval:

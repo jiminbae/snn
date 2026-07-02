@@ -30,12 +30,14 @@ MODEL_CHOICES = [
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train ChronoSkip SNN prototypes.")
     parser.add_argument("--model", choices=MODEL_CHOICES, default="fixed_lif")
-    parser.add_argument("--dataset", choices=["fashionmnist", "cifar10"], default="fashionmnist")
+    parser.add_argument("--dataset", choices=["fashionmnist", "cifar10", "nmnist", "dvs_gesture"], default="fashionmnist")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--tmax", type=int, default=8)
+    parser.add_argument("--event-frame-mode", choices=["binary", "count"], default="binary")
+    parser.add_argument("--event-downsample-size", type=int, default=None)
     parser.add_argument("--gate-init", type=float, default=5.0)
     parser.add_argument("--lambda-spike", type=float, default=0.05)
     parser.add_argument("--eta-time", type=float, default=0.02)
@@ -416,7 +418,18 @@ def main() -> None:
     config["resolved_device"] = str(device)
     save_json(run_dir / "config.json", config)
 
-    train_loader, test_loader = build_dataloaders(args.dataset, args.data_dir, args.batch_size, num_workers=args.num_workers)
+    event_downsample_size = args.event_downsample_size
+    if args.dataset == "dvs_gesture" and event_downsample_size is None:
+        event_downsample_size = 64
+    train_loader, test_loader = build_dataloaders(
+        args.dataset,
+        args.data_dir,
+        args.batch_size,
+        tmax=args.tmax,
+        num_workers=args.num_workers,
+        event_frame_mode=args.event_frame_mode,
+        event_downsample_size=event_downsample_size,
+    )
     model = build_model(args.model, dataset=args.dataset, tmax=args.tmax, gate_init=args.gate_init).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp and device.type == "cuda")
