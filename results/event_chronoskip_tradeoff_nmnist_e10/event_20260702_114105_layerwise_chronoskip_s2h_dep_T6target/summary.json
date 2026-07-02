@@ -1,0 +1,78 @@
+{
+  "dataset": "nmnist",
+  "effective_timestep": 2.5257370471954346,
+  "energy_proxy": 0.0925838404617197,
+  "executed_timestep": 1.0,
+  "gated_spike_rate": 0.036656167578697205,
+  "hard_acc": 96.71,
+  "hard_budget_proxy": {
+    "average": 2.582530975341797,
+    "layer1": 1.615088939666748,
+    "layer2": 3.5499730110168457
+  },
+  "hard_effective_timestep": 1.0,
+  "hard_prefix_masks": {
+    "layer1": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "layer2": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "hard_prefix_steps": {
+    "average": 1.0,
+    "executed": 1.0,
+    "layer1": 1.0,
+    "layer2": 1.0
+  },
+  "layer1_effective_timestep": 1.4764918088912964,
+  "layer1_hard_timestep": 1.0,
+  "layer2_effective_timestep": 3.574982166290283,
+  "layer2_hard_timestep": 1.0,
+  "loop_energy_proxy": 0.12968419320583344,
+  "model": "layerwise_chronoskip_s2h",
+  "prefix_energy_proxy": 0.12968419320583344,
+  "prefix_spike_rate": 0.12968419320583344,
+  "raw_spike_rate": 0.09281714673042298,
+  "run_name": "event_20260702_114105_layerwise_chronoskip_s2h_dep_T6target",
+  "soft_acc": 97.32,
+  "test_acc": 96.71,
+  "test_accuracy": 96.71,
+  "timestep_gates": {
+    "layer1": [
+      0.5727076530456543,
+      0.33386656641960144,
+      0.20628637075424194,
+      0.13500835001468658,
+      0.09055273234844208,
+      0.06243404000997543,
+      0.043812092393636703,
+      0.031823985278606415
+    ],
+    "layer2": [
+      0.9348361492156982,
+      0.8111225962638855,
+      0.6221403479576111,
+      0.46555063128471375,
+      0.3177829086780548,
+      0.1986311972141266,
+      0.1367335170507431,
+      0.08818471431732178
+    ]
+  },
+  "tmax": 8
+}
