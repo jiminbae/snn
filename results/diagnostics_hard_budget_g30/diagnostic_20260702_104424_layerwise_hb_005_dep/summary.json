@@ -1,0 +1,78 @@
+{
+  "dataset": "fashionmnist",
+  "effective_timestep": 6.221271991729736,
+  "energy_proxy": 1.1974078255805845,
+  "executed_timestep": 8.0,
+  "gated_spike_rate": 0.19246993656158448,
+  "hard_acc": 85.94999979019165,
+  "hard_budget_proxy": {
+    "average": 6.293538570404053,
+    "layer1": 6.084124565124512,
+    "layer2": 6.502952575683594
+  },
+  "hard_effective_timestep": 8.0,
+  "hard_prefix_masks": {
+    "layer1": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "layer2": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "hard_prefix_steps": {
+    "average": 8.0,
+    "executed": 8.0,
+    "layer1": 8.0,
+    "layer2": 8.0
+  },
+  "layer1_effective_timestep": 5.986738204956055,
+  "layer1_hard_timestep": 8.0,
+  "layer2_effective_timestep": 6.455805778503418,
+  "layer2_hard_timestep": 8.0,
+  "loop_energy_proxy": 2.3296228847503664,
+  "model": "layerwise_chronoskip_s2h",
+  "prefix_energy_proxy": 2.3296228847503664,
+  "prefix_spike_rate": 0.2912028605937958,
+  "raw_spike_rate": 0.2440795179128647,
+  "run_name": "diagnostic_20260702_104424_layerwise_hb_005_dep",
+  "soft_acc": 85.7800000667572,
+  "test_acc": 85.94999979019165,
+  "test_accuracy": 85.94999979019165,
+  "timestep_gates": {
+    "layer1": [
+      0.935619592666626,
+      0.8762405514717102,
+      0.8195621967315674,
+      0.7660346627235413,
+      0.7154501080513,
+      0.668262243270874,
+      0.6236037611961365,
+      0.5819648504257202
+    ],
+    "layer2": [
+      0.9529009461402893,
+      0.9089590907096863,
+      0.8655846118927002,
+      0.8243538737297058,
+      0.7829433083534241,
+      0.744952917098999,
+      0.705019474029541,
+      0.6710915565490723
+    ]
+  },
+  "tmax": 8
+}
