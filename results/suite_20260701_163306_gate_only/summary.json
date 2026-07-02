@@ -1,0 +1,68 @@
+{
+  "average_spike_rate": 0.1636508040189743,
+  "candidate_metadata": [
+    {
+      "name": "fast_sensitive",
+      "tau": 2.0,
+      "v_th": 0.5
+    },
+    {
+      "name": "fast_balanced",
+      "tau": 2.0,
+      "v_th": 1.0
+    },
+    {
+      "name": "memory_balanced",
+      "tau": 6.0,
+      "v_th": 1.0
+    },
+    {
+      "name": "memory_sparse",
+      "tau": 6.0,
+      "v_th": 1.5
+    }
+  ],
+  "candidate_probabilities": [
+    [
+      0.25,
+      0.25,
+      0.25,
+      0.25
+    ],
+    [
+      0.25,
+      0.25,
+      0.25,
+      0.25
+    ]
+  ],
+  "dataset": "fashionmnist",
+  "effective_timestep": 6.580229759216309,
+  "energy_proxy": 1.0768598907253306,
+  "gated_spike_rate": 0.1636508040189743,
+  "hard_effective_timestep": 8.0,
+  "model": "gate_only",
+  "prefix_energy_proxy": 1.7801887001037597,
+  "prefix_spike_rate": 0.22252358751296997,
+  "raw_spike_rate": 0.1992321677207947,
+  "run_name": "suite_20260701_163306_gate_only",
+  "selected_indices": [
+    0,
+    0
+  ],
+  "selected_names": [
+    "fast_sensitive",
+    "fast_sensitive"
+  ],
+  "test_accuracy": 90.67999994277955,
+  "timestep_gates": [
+    0.9386115670204163,
+    0.9103993773460388,
+    0.8815690875053406,
+    0.8499545454978943,
+    0.8084670305252075,
+    0.7775865793228149,
+    0.7183820009231567,
+    0.6952597498893738
+  ]
+}

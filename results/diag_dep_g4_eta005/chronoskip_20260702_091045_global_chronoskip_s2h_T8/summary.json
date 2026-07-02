@@ -1,0 +1,33 @@
+{
+  "dataset": "fashionmnist",
+  "effective_timestep": 7.3349432945251465,
+  "energy_proxy": 1.7238559214901195,
+  "executed_timestep": 8.0,
+  "gated_spike_rate": 0.23501966576576233,
+  "hard_acc": 86.13000002861023,
+  "hard_effective_timestep": 8.0,
+  "layer1_effective_timestep": 7.3349432945251465,
+  "layer1_hard_timestep": 8.0,
+  "layer2_effective_timestep": 7.3349432945251465,
+  "layer2_hard_timestep": 8.0,
+  "loop_energy_proxy": 2.168059693145752,
+  "model": "global_chronoskip_s2h",
+  "prefix_energy_proxy": 2.168059693145752,
+  "prefix_spike_rate": 0.271007461643219,
+  "raw_spike_rate": 0.25687219414711,
+  "run_name": "chronoskip_20260702_091045_global_chronoskip_s2h_T8",
+  "soft_acc": 85.97999979019166,
+  "test_acc": 86.13000002861023,
+  "test_accuracy": 86.13000002861023,
+  "timestep_gates": [
+    0.9803729057312012,
+    0.9620177745819092,
+    0.9434712529182434,
+    0.92544025182724,
+    0.9071513414382935,
+    0.8898829221725464,
+    0.8714118599891663,
+    0.8551948070526123
+  ],
+  "tmax": 8
+}

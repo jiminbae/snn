@@ -1,0 +1,22 @@
+{
+  "average_spike_rate": 0.2927749201774597,
+  "candidate_metadata": [],
+  "candidate_probabilities": [],
+  "dataset": "fashionmnist",
+  "effective_timestep": 8.0,
+  "energy_proxy": 2.3421993614196777,
+  "gated_spike_rate": 0.2927749201774597,
+  "hard_effective_timestep": 8.0,
+  "model": "fixed_lif",
+  "prefix_energy_proxy": 2.3421993614196777,
+  "prefix_spike_rate": 0.2927749201774597,
+  "raw_spike_rate": 0.2927749201774597,
+  "run_name": "suite_20260701_165801_fixed_lif",
+  "selected_indices": [],
+  "selected_names": [
+    "fixed_lif",
+    "fixed_lif"
+  ],
+  "test_accuracy": 88.95000002861023,
+  "timestep_gates": []
+}
