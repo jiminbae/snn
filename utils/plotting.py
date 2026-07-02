@@ -48,12 +48,14 @@ def plot_training_curves(metrics_path: str | Path, plots_dir: str | Path) -> Non
     _line_plot(rows, "prefix_spike_rate", "Prefix spike rate", plots_dir / "prefix_spike_rate_curve.png")
     _line_plot(rows, "effective_timestep", "Effective timestep", plots_dir / "effective_timestep_curve.png")
     _line_plot(rows, "hard_effective_timestep", "Hard effective timestep", plots_dir / "hard_effective_timestep_curve.png")
+    _line_plot(rows, "executed_timestep", "Executed timestep", plots_dir / "executed_timestep_curve.png")
     _line_plot(rows, "layer1_effective_timestep", "Layer 1 effective timestep", plots_dir / "layer1_effective_timestep_curve.png")
     _line_plot(rows, "layer2_effective_timestep", "Layer 2 effective timestep", plots_dir / "layer2_effective_timestep_curve.png")
     _line_plot(rows, "layer1_hard_timestep", "Layer 1 hard timestep", plots_dir / "layer1_hard_timestep_curve.png")
     _line_plot(rows, "layer2_hard_timestep", "Layer 2 hard timestep", plots_dir / "layer2_hard_timestep_curve.png")
     _line_plot(rows, "energy_proxy", "Energy proxy", plots_dir / "energy_proxy_curve.png")
     _line_plot(rows, "prefix_energy_proxy", "Prefix energy proxy", plots_dir / "prefix_energy_proxy_curve.png")
+    _line_plot(rows, "loop_energy_proxy", "Loop energy proxy", plots_dir / "loop_energy_proxy_curve.png")
 
 
 def _plot_gate_values(values: list[float], title: str, output: Path) -> None:

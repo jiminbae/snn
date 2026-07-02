@@ -91,8 +91,11 @@ class FixedLIFSNN(nn.Module):
             "prefix_spike_rate": spike_rate,
             "effective_timestep": timestep,
             "hard_effective_timestep": timestep,
+            "executed_timestep": timestep,
             "energy_proxy": spike_rate * timestep,
             "prefix_energy_proxy": spike_rate * timestep,
+            "loop_energy_proxy": spike_rate * timestep,
+            "is_hard_prefix": x.new_tensor(0.0),
             "gates": gates,
             "layer_effective_timesteps": layer_steps,
             "layer_hard_timesteps": layer_steps,
@@ -162,6 +165,7 @@ class ChronoSkipSNN(nn.Module):
         gate_threshold: float = 0.5,
         hard_prefix_unscaled: bool = False,
         min_prefix_steps: int = 1,
+        dependency_constrained_prefix: bool = False,
     ) -> dict[str, Tensor | dict[str, Tensor]]:
         if mode not in {"soft", "hard_prefix"}:
             raise ValueError(f"Unknown forward mode: {mode}")
@@ -178,6 +182,8 @@ class ChronoSkipSNN(nn.Module):
         g1, g2 = self._gate_pair()
         hard_mask1 = self._hard_mask(g1, gate_threshold, min_prefix_steps)
         hard_mask2 = self._hard_mask(g2, gate_threshold, min_prefix_steps)
+        if mode == "hard_prefix" and self.is_layerwise and dependency_constrained_prefix:
+            hard_mask2 = hard_mask2 * hard_mask1
         hard_steps1 = hard_mask1.sum()
         hard_steps2 = hard_mask2.sum()
         effective1 = g1.sum()
@@ -193,6 +199,12 @@ class ChronoSkipSNN(nn.Module):
         gated_spike_costs: list[Tensor] = []
         prefix_spike_costs: list[Tensor] = []
 
+        # Layer-wise hard-prefix semantics:
+        # If a layer is inactive at timestep t, it produces no new spikes.
+        # If layer 1 is inactive but layer 2 is still active, layer 2 receives zero
+        # new input from layer 1 at this timestep. This corresponds to a deployable
+        # timestep skipping interpretation where skipped upstream computation emits
+        # no events, while downstream membrane dynamics can still continue.
         for t in range(steps_to_run):
             l1_active = mode == "soft" or bool(hard_mask1[t].detach().cpu().item())
             l2_active = mode == "soft" or bool(hard_mask2[t].detach().cpu().item())
@@ -242,8 +254,14 @@ class ChronoSkipSNN(nn.Module):
         raw_spike_rate = _stack_mean(raw_spike_costs, x)
         gated_spike_rate = _stack_mean(gated_spike_costs, x)
         prefix_spike_rate = _stack_mean(prefix_spike_costs, x)
+        # In soft mode, prefix_spike_rate is kept equal to gated_spike_rate for
+        # logging compatibility. It should only be interpreted as actual prefix
+        # spike activity when is_hard_prefix == 1.
+        if mode == "soft":
+            prefix_spike_rate = gated_spike_rate
         effective_timestep = (effective1 + effective2) / 2.0
         hard_effective_timestep = (hard_steps1 + hard_steps2) / 2.0
+        executed_timestep = x.new_tensor(float(self.tmax if mode == "soft" else steps_to_run))
         normalizer = torch.clamp(effective_timestep if mode == "soft" else hard_effective_timestep, min=1.0)
         gates = self.timestep_gates()
         layer_effective = {"layer1": effective1, "layer2": effective2}
@@ -257,18 +275,21 @@ class ChronoSkipSNN(nn.Module):
             "prefix_spike_rate": prefix_spike_rate,
             "effective_timestep": effective_timestep,
             "hard_effective_timestep": hard_effective_timestep,
+            "executed_timestep": executed_timestep,
             "energy_proxy": gated_spike_rate * effective_timestep,
             "prefix_energy_proxy": prefix_spike_rate * hard_effective_timestep,
+            "loop_energy_proxy": prefix_spike_rate * executed_timestep,
+            "is_hard_prefix": x.new_tensor(1.0 if mode == "hard_prefix" else 0.0),
             "gates": gates,
             "layer_effective_timesteps": layer_effective,
             "layer_hard_timesteps": layer_hard,
         }
 
 
-def build_model(model_type: str, dataset: str, tmax: int, **_: object) -> nn.Module:
+def build_model(model_type: str, dataset: str, tmax: int, gate_init: float = 5.0, **_: object) -> nn.Module:
     model_type = model_type.lower()
     if model_type == "fixed_lif":
         return FixedLIFSNN(dataset=dataset, tmax=tmax)
     if model_type in SUPPORTED_MODELS:
-        return ChronoSkipSNN(dataset=dataset, tmax=tmax, model_type=model_type)
+        return ChronoSkipSNN(dataset=dataset, tmax=tmax, model_type=model_type, gate_init=gate_init)
     raise ValueError(f"Unknown model type: {model_type}")

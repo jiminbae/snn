@@ -20,12 +20,14 @@ FIELDNAMES = [
     "Prefix Spike Rate",
     "Effective Timestep",
     "Hard Effective Timestep",
+    "Executed Timestep",
     "Layer1 Effective Timestep",
     "Layer2 Effective Timestep",
     "Layer1 Hard Timestep",
     "Layer2 Hard Timestep",
     "Energy Proxy",
     "Prefix Energy Proxy",
+    "Loop Energy Proxy",
 ]
 
 
@@ -34,6 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", choices=["fashionmnist", "cifar10"], default="fashionmnist")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--gate-init", type=float, default=5.0)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
@@ -44,6 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--spike-cost-mode", choices=["raw", "gated", "mixed"], default="gated")
     parser.add_argument("--hard-prefix-eval", action="store_true")
     parser.add_argument("--hard-prefix-unscaled", action="store_true")
+    parser.add_argument("--dependency-constrained-prefix", action="store_true")
     parser.add_argument("--min-prefix-steps", type=int, default=1)
     parser.add_argument("--gate-threshold", type=float, default=0.5)
     parser.add_argument("--hard-ce-weight", type=float, default=0.5)
@@ -70,12 +74,14 @@ def row_from_summary(label: str, summary: dict[str, Any]) -> dict[str, Any]:
         "Prefix Spike Rate": summary.get("prefix_spike_rate", 0.0),
         "Effective Timestep": summary.get("effective_timestep", 0.0),
         "Hard Effective Timestep": summary.get("hard_effective_timestep", 0.0),
+        "Executed Timestep": summary.get("executed_timestep", 0.0),
         "Layer1 Effective Timestep": summary.get("layer1_effective_timestep", 0.0),
         "Layer2 Effective Timestep": summary.get("layer2_effective_timestep", 0.0),
         "Layer1 Hard Timestep": summary.get("layer1_hard_timestep", 0.0),
         "Layer2 Hard Timestep": summary.get("layer2_hard_timestep", 0.0),
         "Energy Proxy": summary.get("energy_proxy", 0.0),
         "Prefix Energy Proxy": summary.get("prefix_energy_proxy", 0.0),
+        "Loop Energy Proxy": summary.get("loop_energy_proxy", 0.0),
     }
 
 
@@ -121,6 +127,8 @@ def main() -> None:
             args.data_dir,
             "--run-name",
             run_name,
+            "--gate-init",
+            str(args.gate_init),
             "--lambda-spike",
             str(args.lambda_spike),
             "--eta-time",
@@ -144,6 +152,8 @@ def main() -> None:
             cmd.append("--hard-prefix-eval")
         if args.hard_prefix_unscaled:
             cmd.append("--hard-prefix-unscaled")
+        if args.dependency_constrained_prefix:
+            cmd.append("--dependency-constrained-prefix")
         if args.limit_train_batches is not None:
             cmd.extend(["--limit-train-batches", str(args.limit_train_batches)])
         if args.limit_test_batches is not None:
@@ -167,8 +177,8 @@ def main() -> None:
             f"{row['Model']:>28} | acc {float(row['Accuracy']):6.2f}% | "
             f"soft {float(row['Soft Accuracy']):6.2f}% | hard {float(row['Hard Accuracy']):6.2f}% | "
             f"raw {float(row['Raw Spike Rate']):.5f} | gated {float(row['Gated Spike Rate']):.5f} | "
-            f"prefix {float(row['Prefix Spike Rate']):.5f} | T {float(row['Effective Timestep']):.2f}/hard {float(row['Hard Effective Timestep']):.2f} | "
-            f"energy proxy {float(row['Energy Proxy']):.5f}"
+            f"prefix {float(row['Prefix Spike Rate']):.5f} | T {float(row['Effective Timestep']):.2f}/hard {float(row['Hard Effective Timestep']):.2f}/exec {float(row['Executed Timestep']):.2f} | "
+            f"energy proxy {float(row['Energy Proxy']):.5f} | loop proxy {float(row['Loop Energy Proxy']):.5f}"
         )
 
 

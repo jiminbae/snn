@@ -36,11 +36,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--tmax", type=int, default=8)
+    parser.add_argument("--gate-init", type=float, default=5.0)
     parser.add_argument("--lambda-spike", type=float, default=0.05)
     parser.add_argument("--eta-time", type=float, default=0.02)
     parser.add_argument("--spike-cost-mode", choices=["raw", "gated", "mixed"], default="gated")
     parser.add_argument("--hard-prefix-eval", action="store_true")
     parser.add_argument("--hard-prefix-unscaled", action="store_true")
+    parser.add_argument("--dependency-constrained-prefix", action="store_true")
     parser.add_argument("--min-prefix-steps", type=int, default=1)
     parser.add_argument("--gate-threshold", type=float, default=0.5)
     parser.add_argument("--hard-ce-weight", type=float, default=0.5)
@@ -153,12 +155,17 @@ def train_one_epoch(
         with torch.cuda.amp.autocast(enabled=amp_enabled):
             soft_output = model(images, mode="soft", gate_threshold=args.gate_threshold, min_prefix_steps=args.min_prefix_steps)
             if use_s2h:
+                # The hard-prefix pass uses non-differentiable binary prefix decisions.
+                # Therefore, hard CE and consistency mainly train the network weights to be
+                # robust under hard-prefix inference. The soft gate and time regularization
+                # remain the differentiable path for learning timestep budgets.
                 hard_output = model(
                     images,
                     mode="hard_prefix",
                     gate_threshold=args.gate_threshold,
                     hard_prefix_unscaled=True,
                     min_prefix_steps=args.min_prefix_steps,
+                    dependency_constrained_prefix=args.dependency_constrained_prefix,
                 )
                 soft_logits = soft_output["logits"]
                 hard_logits = hard_output["logits"]
@@ -232,6 +239,8 @@ def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torc
         "layer2_hard_timestep",
         "energy_proxy",
         "prefix_energy_proxy",
+        "executed_timestep",
+        "loop_energy_proxy",
     ]
     meters = {name: AverageMeter() for name in meter_names}
     progress = tqdm(loader, desc="test", leave=False)
@@ -252,6 +261,7 @@ def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torc
                 gate_threshold=args.gate_threshold,
                 hard_prefix_unscaled=args.hard_prefix_unscaled,
                 min_prefix_steps=args.min_prefix_steps,
+                dependency_constrained_prefix=args.dependency_constrained_prefix,
             )
             hard_logits = eval_output["logits"]
             assert isinstance(hard_logits, torch.Tensor)
@@ -268,15 +278,21 @@ def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torc
         meters["hard_acc"].update(hard_acc_value, batch_size)
         meters["raw_spike_rate"].update(output_to_float(soft_output, "raw_spike_rate"), batch_size)
         meters["gated_spike_rate"].update(output_to_float(soft_output, "gated_spike_rate"), batch_size)
-        meters["prefix_spike_rate"].update(output_to_float(eval_output, "prefix_spike_rate"), batch_size)
+        metric_output = eval_output if args.hard_prefix_eval else soft_output
+        prefix_spike = output_to_float(metric_output, "prefix_spike_rate")
+        prefix_timestep = output_to_float(metric_output, "hard_effective_timestep")
+        executed_timestep = output_to_float(metric_output, "executed_timestep")
+        meters["prefix_spike_rate"].update(prefix_spike, batch_size)
         meters["effective_timestep"].update(output_to_float(soft_output, "effective_timestep"), batch_size)
-        meters["hard_effective_timestep"].update(output_to_float(soft_output, "hard_effective_timestep"), batch_size)
+        meters["hard_effective_timestep"].update(prefix_timestep, batch_size)
+        meters["executed_timestep"].update(executed_timestep, batch_size)
         meters["layer1_effective_timestep"].update(nested_output_to_float(soft_output, "layer_effective_timesteps", "layer1"), batch_size)
         meters["layer2_effective_timestep"].update(nested_output_to_float(soft_output, "layer_effective_timesteps", "layer2"), batch_size)
-        meters["layer1_hard_timestep"].update(nested_output_to_float(soft_output, "layer_hard_timesteps", "layer1"), batch_size)
-        meters["layer2_hard_timestep"].update(nested_output_to_float(soft_output, "layer_hard_timesteps", "layer2"), batch_size)
+        meters["layer1_hard_timestep"].update(nested_output_to_float(metric_output, "layer_hard_timesteps", "layer1"), batch_size)
+        meters["layer2_hard_timestep"].update(nested_output_to_float(metric_output, "layer_hard_timesteps", "layer2"), batch_size)
         meters["energy_proxy"].update(energy_proxy(output_to_float(soft_output, "gated_spike_rate"), output_to_float(soft_output, "effective_timestep")), batch_size)
-        meters["prefix_energy_proxy"].update(energy_proxy(output_to_float(eval_output, "prefix_spike_rate"), output_to_float(soft_output, "hard_effective_timestep")), batch_size)
+        meters["prefix_energy_proxy"].update(energy_proxy(prefix_spike, prefix_timestep), batch_size)
+        meters["loop_energy_proxy"].update(energy_proxy(prefix_spike, executed_timestep), batch_size)
         progress.set_postfix(acc=f"{meters['test_acc'].avg:.2f}")
 
     return {key: meter.avg for key, meter in meters.items()}
@@ -314,7 +330,7 @@ def main() -> None:
     save_json(run_dir / "config.json", config)
 
     train_loader, test_loader = build_dataloaders(args.dataset, args.data_dir, args.batch_size, num_workers=args.num_workers)
-    model = build_model(args.model, dataset=args.dataset, tmax=args.tmax).to(device)
+    model = build_model(args.model, dataset=args.dataset, tmax=args.tmax, gate_init=args.gate_init).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp and device.type == "cuda")
 
@@ -340,8 +356,8 @@ def main() -> None:
             f"epoch {epoch:03d} | loss {train_metrics['loss']:.4f} | "
             f"test {last_eval['test_acc']:.2f}% | soft {last_eval['soft_acc']:.2f}% | hard {last_eval['hard_acc']:.2f}% | "
             f"raw {last_eval['raw_spike_rate']:.4f} | gated {last_eval['gated_spike_rate']:.4f} | "
-            f"T {last_eval['effective_timestep']:.2f}/hard {last_eval['hard_effective_timestep']:.2f} | "
-            f"energy proxy {last_eval['energy_proxy']:.4f}"
+            f"T {last_eval['effective_timestep']:.2f}/hard {last_eval['hard_effective_timestep']:.2f}/exec {last_eval['executed_timestep']:.2f} | "
+            f"energy proxy {last_eval['energy_proxy']:.4f} | loop proxy {last_eval['loop_energy_proxy']:.4f}"
         )
 
     model_state = snapshot_model_state(model)
@@ -368,8 +384,10 @@ def main() -> None:
     print(f"Prefix spike rate: {summary['prefix_spike_rate']:.6f}")
     print(f"Effective timestep: {summary['effective_timestep']:.4f}")
     print(f"Hard effective timestep: {summary['hard_effective_timestep']:.4f}")
+    print(f"Executed timestep: {summary['executed_timestep']:.4f}")
     print(f"Energy proxy: {summary['energy_proxy']:.6f}")
     print(f"Prefix energy proxy: {summary['prefix_energy_proxy']:.6f}")
+    print(f"Loop energy proxy: {summary['loop_energy_proxy']:.6f}")
     print(f"Saved results to: {run_dir}")
 
 

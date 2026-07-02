@@ -21,10 +21,11 @@ This repository is focused on timestep skipping and prefix timestep budget learn
 
 ## Key Ideas
 
-- Monotonic prefix gates: `cumprod(sigmoid(theta))`.
+- Monotonic prefix gates: `cumprod(sigmoid(theta))`, initialized with `--gate-init`.
 - Hard-prefix timestep skipping: evaluation can run only active prefix timesteps.
+- Layer-wise hard-prefix semantics: if an upstream layer is skipped at a timestep, downstream layers receive zero new input but may continue membrane updates if active. `--dependency-constrained-prefix` enforces downstream activity only when upstream layers are also active.
 - Unscaled hard-prefix inference: `--hard-prefix-unscaled` uses binary spikes on active prefix timesteps.
-- Soft-to-hard consistency training: S2H models train soft and hard-prefix passes together.
+- Soft-to-hard consistency training: S2H models train soft and hard-prefix passes together. The hard-prefix pass uses non-differentiable binary prefix decisions, so hard CE and consistency train weights for robustness; soft gates and time regularization remain the differentiable path for learning budgets.
 - Layer-wise timestep budgets: layer-wise models learn separate budgets for each spiking layer.
 - Energy proxy only: reported values are not measured hardware power.
 
@@ -39,7 +40,7 @@ pip install -r requirements.txt
 ## Smoke Test
 
 ```bash
-python train.py   --model layerwise_chronoskip_s2h   --dataset fashionmnist   --epochs 1   --batch-size 128   --device cuda   --amp   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --limit-train-batches 2   --limit-test-batches 2
+python train.py   --model layerwise_chronoskip_s2h   --dataset fashionmnist   --epochs 1   --batch-size 128   --device cuda   --amp   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --gate-init 5.0   --limit-train-batches 2   --limit-test-batches 2
 ```
 
 If CUDA is unavailable, the script falls back to CPU.
@@ -47,13 +48,13 @@ If CUDA is unavailable, the script falls back to CPU.
 ## Single Run
 
 ```bash
-python train.py   --model global_chronoskip_s2h   --dataset fashionmnist   --epochs 20   --batch-size 256   --tmax 8   --lambda-spike 0.05   --eta-time 0.02   --spike-cost-mode gated   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --hard-ce-weight 0.5   --consistency-weight 0.1   --reg-warmup-epochs 5   --device cuda   --amp
+python train.py   --model global_chronoskip_s2h   --dataset fashionmnist   --epochs 20   --batch-size 256   --tmax 8   --gate-init 5.0   --lambda-spike 0.05   --eta-time 0.02   --spike-cost-mode gated   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --hard-ce-weight 0.5   --consistency-weight 0.1   --reg-warmup-epochs 5   --device cuda   --amp
 ```
 
 ## Main Experiment Suite
 
 ```bash
-python run_chronoskip_experiments.py   --dataset fashionmnist   --epochs 20   --batch-size 2048   --device cuda   --amp   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1
+python run_chronoskip_experiments.py   --dataset fashionmnist   --epochs 20   --batch-size 2048   --device cuda   --amp   --hard-prefix-eval   --hard-prefix-unscaled   --min-prefix-steps 1   --gate-init 5.0
 ```
 
 The suite runs:
@@ -91,21 +92,24 @@ Logged metrics include:
 - `prefix_spike_rate`
 - `effective_timestep`
 - `hard_effective_timestep`
+- `executed_timestep`
 - `layer1_effective_timestep`
 - `layer2_effective_timestep`
 - `layer1_hard_timestep`
 - `layer2_hard_timestep`
 - `energy_proxy`
 - `prefix_energy_proxy`
+- `loop_energy_proxy`
 
 Energy proxy definitions:
 
 ```text
 energy_proxy = gated_spike_rate * effective_timestep
 prefix_energy_proxy = prefix_spike_rate * hard_effective_timestep
+loop_energy_proxy = prefix_spike_rate * executed_timestep
 ```
 
-These are proxy metrics for comparing spike activity and active timestep budgets. They are not actual hardware energy measurements.
+`prefix_spike_rate` is actual executed-prefix spike activity only when hard-prefix evaluation is enabled. In soft-only runs, it is a compatibility field equal to the soft gated spike activity. `prefix_energy_proxy` uses the average hard layer budget, while `loop_energy_proxy` uses the recurrent loop count actually executed. These are proxy metrics for comparing spike activity and active timestep budgets. They are not actual hardware energy measurements.
 
 ## Scientific Comparisons
 
