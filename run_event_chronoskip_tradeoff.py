@@ -56,6 +56,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eta-time", type=float, default=0.05)
     parser.add_argument("--hard-budget-sharpness", type=float, default=5.0)
     parser.add_argument("--target-budget-weight", type=float, default=0.05)
+    parser.add_argument("--target-budget-mode", choices=["upper", "two_sided", "l2"], default="upper")
+    parser.add_argument("--min-target-timestep", type=float, default=0.0)
+    parser.add_argument("--min-target-weight", type=float, default=0.0)
     parser.add_argument("--min-prefix-steps", type=int, default=1)
     parser.add_argument("--gate-threshold", type=float, default=0.5)
     parser.add_argument("--limit-train-batches", type=int, default=None)
@@ -153,7 +156,7 @@ def build_suite(base_tmax: int) -> list[tuple[str, dict[str, Any]]]:
                 },
             )
         )
-    for t in (6, 4, 3):
+    for t in (6, 4, 3, 2, 1):
         suite.append(
             (
                 f"fixed_prefix_T{t}",
@@ -264,6 +267,9 @@ def main() -> None:
             "--hard-budget-sharpness", str(args.hard_budget_sharpness),
             "--target-timestep", str(config.get("target_timestep", 0.0)),
             "--target-budget-weight", str(args.target_budget_weight),
+            "--target-budget-mode", args.target_budget_mode,
+            "--min-target-timestep", str(args.min_target_timestep),
+            "--min-target-weight", str(args.min_target_weight),
             "--min-prefix-steps", str(args.min_prefix_steps),
             "--gate-threshold", str(args.gate_threshold),
             "--hard-prefix-eval",

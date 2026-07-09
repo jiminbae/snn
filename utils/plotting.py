@@ -55,6 +55,7 @@ def plot_training_curves(metrics_path: str | Path, plots_dir: str | Path) -> Non
     _line_plot(rows, "layer2_hard_timestep", "Layer 2 hard timestep", plots_dir / "layer2_hard_timestep_curve.png")
     _line_plot(rows, "train_hard_budget_cost", "Train hard budget cost", plots_dir / "train_hard_budget_cost_curve.png")
     _line_plot(rows, "train_target_budget_loss", "Train target budget loss", plots_dir / "train_target_budget_loss_curve.png")
+    _line_plot(rows, "train_min_target_loss", "Train min target loss", plots_dir / "train_min_target_loss_curve.png")
     _line_plot(rows, "train_hard_budget_proxy", "Train hard budget proxy", plots_dir / "train_hard_budget_proxy_curve.png")
     _line_plot(rows, "energy_proxy", "Energy proxy", plots_dir / "energy_proxy_curve.png")
     _line_plot(rows, "prefix_energy_proxy", "Prefix energy proxy", plots_dir / "prefix_energy_proxy_curve.png")

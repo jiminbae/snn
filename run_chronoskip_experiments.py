@@ -51,6 +51,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hard-budget-sharpness", type=float, default=20.0)
     parser.add_argument("--target-timestep", type=float, default=0.0)
     parser.add_argument("--target-budget-weight", type=float, default=0.0)
+    parser.add_argument("--target-budget-mode", choices=["upper", "two_sided", "l2"], default="upper")
+    parser.add_argument("--min-target-timestep", type=float, default=0.0)
+    parser.add_argument("--min-target-weight", type=float, default=0.0)
     parser.add_argument("--spike-cost-mode", choices=["raw", "gated", "mixed"], default="gated")
     parser.add_argument("--hard-prefix-eval", action="store_true")
     parser.add_argument("--hard-prefix-unscaled", action="store_true")
@@ -161,6 +164,12 @@ def main() -> None:
             str(args.target_timestep),
             "--target-budget-weight",
             str(args.target_budget_weight),
+            "--target-budget-mode",
+            args.target_budget_mode,
+            "--min-target-timestep",
+            str(args.min_target_timestep),
+            "--min-target-weight",
+            str(args.min_target_weight),
             "--spike-cost-mode",
             args.spike_cost_mode,
             "--min-prefix-steps",

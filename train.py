@@ -47,6 +47,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hard-budget-sharpness", type=float, default=20.0)
     parser.add_argument("--target-timestep", type=float, default=0.0)
     parser.add_argument("--target-budget-weight", type=float, default=0.0)
+    parser.add_argument("--target-budget-mode", choices=["upper", "two_sided", "l2"], default="upper")
+    parser.add_argument("--min-target-timestep", type=float, default=0.0)
+    parser.add_argument("--min-target-weight", type=float, default=0.0)
     parser.add_argument("--spike-cost-mode", choices=["raw", "gated", "mixed"], default="gated")
     parser.add_argument("--hard-prefix-eval", action="store_true")
     parser.add_argument("--hard-prefix-unscaled", action="store_true")
@@ -109,12 +112,12 @@ def hard_budget_terms(
     args: argparse.Namespace,
     model: nn.Module,
     output: dict[str, Any],
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     logits = output["logits"]
     assert isinstance(logits, torch.Tensor)
     zero = logits.new_tensor(0.0)
     if args.model == "fixed_lif" or not hasattr(model, "hard_budget_proxy"):
-        return zero, zero, zero
+        return zero, zero, zero, zero
 
     hard_budget_proxy = model.hard_budget_proxy(
         gate_threshold=args.gate_threshold,
@@ -125,8 +128,20 @@ def hard_budget_terms(
     target_budget_loss = zero
     if args.target_timestep > 0.0 and args.target_budget_weight > 0.0:
         target = hard_budget_proxy.new_tensor(args.target_timestep)
-        target_budget_loss = torch.relu(hard_budget_proxy - target) / float(args.tmax)
-    return hard_budget_cost, target_budget_loss, hard_budget_proxy
+        delta = hard_budget_proxy - target
+        if args.target_budget_mode == "upper":
+            target_budget_loss = torch.relu(delta) / float(args.tmax)
+        elif args.target_budget_mode == "two_sided":
+            target_budget_loss = torch.abs(delta) / float(args.tmax)
+        elif args.target_budget_mode == "l2":
+            target_budget_loss = delta.pow(2) / float(args.tmax)
+        else:
+            raise ValueError(f"Unknown target_budget_mode: {args.target_budget_mode}")
+    min_target_loss = zero
+    if args.min_target_timestep > 0.0 and args.min_target_weight > 0.0:
+        min_target = hard_budget_proxy.new_tensor(args.min_target_timestep)
+        min_target_loss = torch.relu(min_target - hard_budget_proxy) / float(args.tmax)
+    return hard_budget_cost, target_budget_loss, min_target_loss, hard_budget_proxy
 
 
 def regularized_loss(
@@ -135,7 +150,7 @@ def regularized_loss(
     output: dict[str, Any],
     target: torch.Tensor,
     reg_scale: float,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     logits = output["logits"]
     assert isinstance(logits, torch.Tensor)
     ce_loss = F.cross_entropy(logits, target)
@@ -143,7 +158,7 @@ def regularized_loss(
     effective_timestep = output["effective_timestep"]
     assert isinstance(effective_timestep, torch.Tensor)
     time_cost = effective_timestep / float(args.tmax)
-    hard_budget_cost, target_budget_loss, hard_budget_proxy = hard_budget_terms(args, model, output)
+    hard_budget_cost, target_budget_loss, min_target_loss, hard_budget_proxy = hard_budget_terms(args, model, output)
     if args.model == "fixed_lif":
         total = ce_loss
     else:
@@ -153,8 +168,9 @@ def regularized_loss(
             + reg_scale * args.eta_time * time_cost
             + reg_scale * args.lambda_hard_budget * hard_budget_cost
             + reg_scale * args.target_budget_weight * target_budget_loss
+            + reg_scale * args.min_target_weight * min_target_loss
         )
-    return total, ce_loss, spike_cost, time_cost, hard_budget_cost, target_budget_loss, hard_budget_proxy
+    return total, ce_loss, spike_cost, time_cost, hard_budget_cost, target_budget_loss, min_target_loss, hard_budget_proxy
 
 
 def train_one_epoch(
@@ -176,6 +192,7 @@ def train_one_epoch(
         "time_cost",
         "hard_budget_cost",
         "target_budget_loss",
+        "min_target_loss",
         "hard_budget_proxy",
         "acc",
         "acc_hard",
@@ -235,7 +252,7 @@ def train_one_epoch(
                 effective_timestep = soft_output["effective_timestep"]
                 assert isinstance(effective_timestep, torch.Tensor)
                 time_cost = effective_timestep / float(args.tmax)
-                hard_budget_cost, target_budget_loss, hard_budget_proxy = hard_budget_terms(args, model, soft_output)
+                hard_budget_cost, target_budget_loss, min_target_loss, hard_budget_proxy = hard_budget_terms(args, model, soft_output)
                 total = (
                     ce_soft
                     + args.hard_ce_weight * ce_hard
@@ -244,10 +261,11 @@ def train_one_epoch(
                     + reg_scale * args.eta_time * time_cost
                     + reg_scale * args.lambda_hard_budget * hard_budget_cost
                     + reg_scale * args.target_budget_weight * target_budget_loss
+                    + reg_scale * args.min_target_weight * min_target_loss
                 )
             else:
                 hard_output = None
-                total, ce_soft, spike_cost, time_cost, hard_budget_cost, target_budget_loss, hard_budget_proxy = regularized_loss(
+                total, ce_soft, spike_cost, time_cost, hard_budget_cost, target_budget_loss, min_target_loss, hard_budget_proxy = regularized_loss(
                     args, model, soft_output, target, reg_scale
                 )
                 ce_hard = images.new_tensor(0.0)
@@ -268,6 +286,7 @@ def train_one_epoch(
         meters["time_cost"].update(time_cost.detach().item(), batch_size)
         meters["hard_budget_cost"].update(hard_budget_cost.detach().item(), batch_size)
         meters["target_budget_loss"].update(target_budget_loss.detach().item(), batch_size)
+        meters["min_target_loss"].update(min_target_loss.detach().item(), batch_size)
         meters["hard_budget_proxy"].update(hard_budget_proxy.detach().item(), batch_size)
         meters["acc"].update(accuracy(soft_logits.detach(), target), batch_size)
         if hard_output is not None:
@@ -469,6 +488,7 @@ def main() -> None:
             "train_time_cost": train_metrics["time_cost"],
             "train_hard_budget_cost": train_metrics["hard_budget_cost"],
             "train_target_budget_loss": train_metrics["target_budget_loss"],
+            "train_min_target_loss": train_metrics["min_target_loss"],
             "train_hard_budget_proxy": train_metrics["hard_budget_proxy"],
             "train_acc_soft": train_metrics["acc"],
             "train_acc_hard": train_metrics["acc_hard"],

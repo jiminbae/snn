@@ -103,6 +103,26 @@ python run_event_chronoskip_tradeoff.py \
 
 The tradeoff script writes `results/event_chronoskip_tradeoff/comparison.csv`. Do not claim ChronoSkip beats fixed shorter-T baselines unless it beats or matches `fixed_prefix_Tk` at similar executed timestep budgets.
 
+## N-MNIST Diagnostic Result
+
+N-MNIST is useful as a sanity check for the event-frame pipeline and for measuring temporal redundancy. It can be early-frame dominant, so ChronoSkip T=1 should always be compared against `fixed_prefix_T1`. Do not use N-MNIST alone to claim ChronoSkip is better than fixed-prefix baselines.
+
+## DVS Gesture Diagnostic
+
+DVS Gesture is a more meaningful temporal benchmark because gesture class can depend on motion over time. The key comparison remains ChronoSkip actual executed T≈k against `fixed_prefix_Tk` at a matched prefix budget. `fixed_rebin_Tk` is an additional coarse temporal-resolution baseline because it rebins the full event duration into fewer frames.
+
+ChronoSkip supports `--target-budget-mode two_sided` and `--min-target-timestep` to avoid collapse to T=1 when the goal is to evaluate controlled budgets such as T≈4 or T≈6.
+
+```bash
+./run_dvs_gesture_chronoskip_tradeoff.sh
+```
+
+Count-frame mode can also be useful when downsampling DVS Gesture because event density may carry information:
+
+```bash
+./run_dvs_gesture_count_tradeoff.sh
+```
+
 ## Threshold-Aware Hard Budget Loss
 
 The original soft time loss penalizes the sum of gate values, but it may not push gates below the hard-prefix threshold. ChronoSkip therefore supports a threshold-aware hard budget proxy:
