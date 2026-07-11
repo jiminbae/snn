@@ -69,6 +69,7 @@ class FixedLIFSNN(nn.Module):
         *,
         temporal_prefix_steps: int = 0,
         temporal_prefix_mode: str = "none",
+        return_prefix_logits: bool = False,
         **_: object,
     ) -> dict[str, Tensor | dict[str, Tensor]]:
         _validate_input(x, self.tmax)
@@ -94,6 +95,7 @@ class FixedLIFSNN(nn.Module):
         s2_prev = _zeros_like(x2_template)
 
         logits_sum = x.new_zeros((x.shape[0], self.backbone.num_classes))
+        prefix_logits_list: list[Tensor] = []
         spike_costs: list[Tensor] = []
 
         for t in range(steps_to_run):
@@ -119,6 +121,8 @@ class FixedLIFSNN(nn.Module):
                 surrogate_scale=self.surrogate_scale,
             )
             logits_sum = logits_sum + self.backbone.classify(s2)
+            if return_prefix_logits:
+                prefix_logits_list.append(logits_sum / float(t + 1))
             spike_costs.extend([s1.mean(), s2.mean()])
             s1_prev, s2_prev = s1, s2
 
@@ -129,7 +133,7 @@ class FixedLIFSNN(nn.Module):
             gates = torch.zeros(self.tmax, device=x.device, dtype=x.dtype)
             gates[:steps_to_run] = 1.0
         layer_steps = {"layer1": timestep, "layer2": timestep}
-        return {
+        output = {
             "logits": logits_sum / float(max(1, steps_to_run)),
             "raw_spike_rate": spike_rate,
             "gated_spike_rate": spike_rate,
@@ -146,6 +150,9 @@ class FixedLIFSNN(nn.Module):
             "layer_effective_timesteps": layer_steps,
             "layer_hard_timesteps": layer_steps,
         }
+        if return_prefix_logits:
+            output["prefix_logits"] = torch.stack(prefix_logits_list, dim=1)
+        return output
 
 
 class ChronoSkipSNN(nn.Module):
@@ -281,6 +288,7 @@ class ChronoSkipSNN(nn.Module):
         dependency_constrained_prefix: bool = False,
         temporal_prefix_steps: int = 0,
         temporal_prefix_mode: str = "none",
+        return_prefix_logits: bool = False,
     ) -> dict[str, Tensor | dict[str, Tensor]]:
         if mode not in {"soft", "hard_prefix"}:
             raise ValueError(f"Unknown forward mode: {mode}")
@@ -312,6 +320,7 @@ class ChronoSkipSNN(nn.Module):
             steps_to_run = int(torch.maximum(hard_steps1, hard_steps2).detach().cpu().item())
 
         logits_sum = x.new_zeros((x.shape[0], self.backbone.num_classes))
+        prefix_logits_list: list[Tensor] = []
         raw_spike_costs: list[Tensor] = []
         gated_spike_costs: list[Tensor] = []
         prefix_spike_costs: list[Tensor] = []
@@ -368,6 +377,8 @@ class ChronoSkipSNN(nn.Module):
                 prefix_spike_costs.append(s2_gated.mean())
                 logits_sum = logits_sum + self.backbone.classify(s2_gated)
                 s2_prev = s2
+            if return_prefix_logits:
+                prefix_logits_list.append(logits_sum / float(t + 1))
 
         raw_spike_rate = _stack_mean(raw_spike_costs, x)
         gated_spike_rate = _stack_mean(gated_spike_costs, x)
@@ -380,12 +391,12 @@ class ChronoSkipSNN(nn.Module):
         effective_timestep = (effective1 + effective2) / 2.0
         hard_effective_timestep = (hard_steps1 + hard_steps2) / 2.0
         executed_timestep = x.new_tensor(float(self.tmax if mode == "soft" else steps_to_run))
-        normalizer = torch.clamp(effective_timestep if mode == "soft" else hard_effective_timestep, min=1.0)
+        normalizer = float(max(1, steps_to_run))
         gates = self.timestep_gates()
         layer_effective = {"layer1": effective1, "layer2": effective2}
         layer_hard = {"layer1": hard_steps1, "layer2": hard_steps2}
 
-        return {
+        output = {
             "logits": logits_sum / normalizer,
             "raw_spike_rate": raw_spike_rate,
             "gated_spike_rate": gated_spike_rate,
@@ -402,6 +413,9 @@ class ChronoSkipSNN(nn.Module):
             "layer_effective_timesteps": layer_effective,
             "layer_hard_timesteps": layer_hard,
         }
+        if return_prefix_logits:
+            output["prefix_logits"] = torch.stack(prefix_logits_list, dim=1)
+        return output
 
 
 def build_model(model_type: str, dataset: str, tmax: int, gate_init: float = 5.0, **_: object) -> nn.Module:
