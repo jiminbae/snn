@@ -20,11 +20,23 @@ def prefix_accuracy_curve(prefix_logits: Tensor, targets: Tensor) -> Tensor:
 
 
 def consecutive_regression_rate(prefix_logits: Tensor, targets: Tensor) -> dict[str, Tensor]:
-    """Return correct-to-incorrect transition rates in percentage points."""
+    """Return population and correct-conditioned regression percentages."""
     correct = _correct_by_prefix(prefix_logits, targets)
-    per_transition = (correct[:, :-1] & ~correct[:, 1:]).float().mean(dim=0) * 100.0
-    mean = per_transition.mean() if per_transition.numel() else prefix_logits.new_tensor(0.0)
-    return {"per_transition": per_transition, "mean": mean}
+    regressed = correct[:, :-1] & ~correct[:, 1:]
+    population = regressed.float().mean(dim=0) * 100.0
+    denominator = correct[:, :-1].sum(dim=0)
+    conditional = regressed.sum(dim=0).float() / denominator.clamp_min(1).float() * 100.0
+    mean_population = population.mean() if population.numel() else prefix_logits.new_tensor(0.0)
+    mean_conditional = conditional.mean() if conditional.numel() else prefix_logits.new_tensor(0.0)
+    return {
+        "population_per_transition": population,
+        "conditional_per_transition": conditional,
+        "mean_population": mean_population,
+        "mean_conditional": mean_conditional,
+        # Backward-compatible aliases for the original population metric.
+        "per_transition": population,
+        "mean": mean_population,
+    }
 
 
 def ever_regressed_rate(prefix_logits: Tensor, targets: Tensor) -> Tensor:

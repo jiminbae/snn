@@ -29,8 +29,11 @@ class PrefixMetricsTest(unittest.TestCase):
         curve = prefix_accuracy_curve(self.logits, self.targets)
         self.assertTrue(torch.equal(curve, torch.tensor([100.0, 50.0, 50.0])))
         regression = consecutive_regression_rate(self.logits, self.targets)
-        self.assertTrue(torch.equal(regression["per_transition"], torch.tensor([50.0, 50.0])))
-        self.assertEqual(float(regression["mean"]), 50.0)
+        self.assertTrue(torch.equal(regression["population_per_transition"], torch.tensor([50.0, 50.0])))
+        self.assertTrue(torch.equal(regression["conditional_per_transition"], torch.tensor([50.0, 100.0])))
+        self.assertEqual(float(regression["mean_population"]), 50.0)
+        self.assertEqual(float(regression["mean_conditional"]), 75.0)
+        self.assertTrue(torch.equal(regression["per_transition"], regression["population_per_transition"]))
         self.assertEqual(float(ever_regressed_rate(self.logits, self.targets)), 100.0)
 
     def test_curve_summaries(self) -> None:

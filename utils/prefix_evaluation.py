@@ -74,8 +74,13 @@ def evaluate_prefix_diagnostics(
         "prefix_accuracy_curve": curve.tolist(),
         "negative_temporal_gain": float(negative_temporal_gain(curve).item()),
         "mean_negative_temporal_gain": float(mean_negative_temporal_gain(curve).item()),
-        "consecutive_regression_rate": float(regressions["mean"].item()),
-        "consecutive_regression_rate_per_transition": regressions["per_transition"].tolist(),
+        "population_regression_rate_per_transition": regressions["population_per_transition"].tolist(),
+        "conditional_regression_rate_per_transition": regressions["conditional_per_transition"].tolist(),
+        "mean_population_regression_rate": float(regressions["mean_population"].item()),
+        "mean_conditional_regression_rate": float(regressions["mean_conditional"].item()),
+        # Backward-compatible aliases for the original population metric.
+        "consecutive_regression_rate": float(regressions["mean_population"].item()),
+        "consecutive_regression_rate_per_transition": regressions["population_per_transition"].tolist(),
         "ever_regressed_rate": float(ever_regressed_rate(prefix_logits, targets).item()),
         "worst_prefix_accuracy": float(worst_prefix_accuracy(curve).item()),
         "prefix_accuracy_auc": float(prefix_accuracy_auc(curve).item()),
@@ -102,12 +107,16 @@ def save_prefix_diagnostics(run_dir: str | Path, metrics: dict[str, Any]) -> Non
         writer.writerow(["Timestep", "Accuracy"])
         writer.writerows((t, value) for t, value in enumerate(curve, start=1))
 
-    regressions = [float(value) for value in metrics["consecutive_regression_rate_per_transition"]]
+    population = [float(value) for value in metrics["population_regression_rate_per_transition"]]
+    conditional = [float(value) for value in metrics["conditional_regression_rate_per_transition"]]
     with (run_dir / "prefix_regression_curve.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["From Timestep", "To Timestep", "Regression Rate"])
-        writer.writerows((t, t + 1, value) for t, value in enumerate(regressions, start=1))
+        writer.writerow(["From Timestep", "To Timestep", "Population Regression Rate", "Conditional Regression Rate"])
+        writer.writerows(
+            (t, t + 1, population[t - 1], conditional[t - 1])
+            for t in range(1, len(population) + 1)
+        )
 
     plots_dir = run_dir / "plots"
     plot_prefix_accuracy_curve(curve, plots_dir / "prefix_accuracy_curve.png")
-    plot_prefix_regression_curve(regressions, plots_dir / "prefix_regression_curve.png")
+    plot_prefix_regression_curve(population, plots_dir / "prefix_regression_curve.png")
