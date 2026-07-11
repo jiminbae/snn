@@ -1,0 +1,8 @@
+From Timestep,To Timestep,Population Regression Rate,Conditional Regression Rate,Correct Samples at From Timestep,Conditional Metric Valid
+1,2,0.0,0.0,0,False
+2,3,0.0,0.0,0,False
+3,4,0.0,0.0,0,False
+4,5,0.0,0.0,0,False
+5,6,0.0,0.0,0,False
+6,7,0.0,0.0,0,False
+7,8,0.0,0.0,0,False
