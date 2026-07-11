@@ -1,0 +1,6 @@
+Timestep,Shared Accuracy,Specialist Accuracy,Prefix Regret,Reference
+1,0.0,0.0,0.0,independent_specialist
+2,0.0,0.0,0.0,independent_specialist
+4,12.5,12.5,0.0,independent_specialist
+6,12.5,12.5,0.0,independent_specialist
+8,12.5,12.5,0.0,shared_same_budget
