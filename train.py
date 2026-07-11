@@ -455,13 +455,14 @@ def main() -> None:
 
     run_name = args.run_name or f"{args.model}_{args.dataset}_T{args.tmax}_seed{args.seed}_{int(time.time())}"
     run_dir = prepare_run_dir(args.results_dir, run_name)
-    config = vars(args).copy()
-    config["resolved_device"] = str(device)
-    save_json(run_dir / "config.json", config)
-
     event_downsample_size = args.event_downsample_size
     if args.dataset == "dvs_gesture" and event_downsample_size is None:
         event_downsample_size = 64
+    config = vars(args).copy()
+    config["resolved_device"] = str(device)
+    config["resolved_event_downsample_size"] = event_downsample_size
+    save_json(run_dir / "config.json", config)
+
     train_loader, test_loader = build_dataloaders(
         args.dataset,
         args.data_dir,
