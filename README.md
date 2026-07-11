@@ -74,7 +74,7 @@ prefix regret at T=k = specialist accuracy at T=k - shared accuracy at T=k
 
 `prefix regret` is introduced here as a diagnostic quantity and is not claimed to be an established standard metric. T8 is recorded as the shared model's same-budget reference with zero regret; it is not interpreted as an independently trained specialist advantage. Mean and maximum regret use T1, T2, T4, and T6 only.
 
-The single-seed runner trains `shared_fixed_lif_T8` and specialists at T1, T2, T4, T6, and T8:
+The runner trains `shared_fixed_lif_T8` and independent prefix specialists at T1, T2, T4, and T6. T8 is not trained as a separate specialist. The shared model's final T8 accuracy is recorded as a same-budget reference with zero prefix regret.
 
 ```bash
 python run_prefix_diagnostics.py \
