@@ -16,6 +16,7 @@ from utils.data import build_dataloaders
 from utils.logging import append_metrics, prepare_run_dir, save_json
 from utils.metrics import AverageMeter, accuracy, energy_proxy
 from utils.plotting import plot_timestep_gates, plot_training_curves
+from utils.prefix_evaluation import evaluate_prefix_diagnostics, save_prefix_diagnostics
 
 MODEL_CHOICES = [
     "fixed_lif",
@@ -68,6 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=None)
     parser.add_argument("--limit-train-batches", type=int, default=None)
     parser.add_argument("--limit-test-batches", type=int, default=None)
+    parser.add_argument("--prefix-diagnostics", action="store_true")
     return parser.parse_args()
 
 
@@ -504,6 +506,10 @@ def main() -> None:
         )
 
     model_state = snapshot_model_state(model, args)
+    prefix_metrics: dict[str, Any] = {}
+    if args.prefix_diagnostics:
+        prefix_metrics = evaluate_prefix_diagnostics(model, test_loader, device, args)
+        save_prefix_diagnostics(run_dir, prefix_metrics)
     summary = {
         "run_name": run_name,
         "model": args.model,
@@ -512,6 +518,7 @@ def main() -> None:
         "test_accuracy": last_eval.get("test_acc", 0.0),
         **last_eval,
         **model_state,
+        **prefix_metrics,
     }
     save_json(run_dir / "summary.json", summary)
     plot_training_curves(metrics_path, run_dir / "plots")

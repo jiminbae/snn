@@ -83,3 +83,36 @@ def plot_timestep_gates(gates: Any, output: str | Path) -> None:
             _plot_gate_values([float(v) for v in values], str(layer_name), output.with_name(f"{output.stem}_{safe_name}{output.suffix}"))
         return
     _plot_gate_values([float(v) for v in gates], "Global timestep gate", output)
+
+
+def plot_prefix_accuracy_curve(values: list[float], output: str | Path) -> None:
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    timesteps = list(range(1, len(values) + 1))
+    plt.figure(figsize=(6, 4))
+    plt.plot(timesteps, values, marker="o", linewidth=2)
+    plt.xlabel("Timestep")
+    plt.ylabel("Accuracy (%)")
+    plt.title("Prefix Accuracy")
+    plt.xticks(timesteps)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output, dpi=160)
+    plt.close()
+
+
+def plot_prefix_regression_curve(values: list[float], output: str | Path) -> None:
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    transitions = list(range(1, len(values) + 1))
+    labels = [f"{t}->{t + 1}" for t in transitions]
+    plt.figure(figsize=(6, 4))
+    plt.plot(transitions, values, marker="o", linewidth=2)
+    plt.xlabel("Timestep Transition")
+    plt.ylabel("Regression Rate (%)")
+    plt.title("Correct-to-Incorrect Prefix Regression")
+    plt.xticks(transitions, labels)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output, dpi=160)
+    plt.close()
