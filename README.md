@@ -28,7 +28,7 @@ Static inputs have shape `[B,C,H,W]` and are reused at every recurrent timestep.
 - **First-correct timestep**: the first prefix at which a sample is correct.
 - **Stable-correct timestep**: the first prefix after which a sample remains correct at every later prefix.
 
-`negative temporal gain` is a project diagnostic term, not an established standard metric.
+`negative temporal gain` is a project diagnostic term, not an established standard metric. Population regression uses every sample as the denominator, while conditional regression measures regressions only among samples that were correct at the earlier prefix.
 
 ## Prefix Diagnostics
 
@@ -72,7 +72,7 @@ A **shared anytime model** is one model expected to operate at several prefix le
 prefix regret at T=k = specialist accuracy at T=k - shared accuracy at T=k
 ```
 
-`prefix regret` is introduced here as a diagnostic quantity and is not claimed to be an established standard metric.
+`prefix regret` is introduced here as a diagnostic quantity and is not claimed to be an established standard metric. T8 is recorded as the shared model's same-budget reference with zero regret; it is not interpreted as an independently trained specialist advantage. Mean and maximum regret use T1, T2, T4, and T6 only.
 
 The single-seed runner trains `shared_fixed_lif_T8` and specialists at T1, T2, T4, T6, and T8:
 
@@ -89,7 +89,7 @@ python run_prefix_diagnostics.py \
   --results-dir results/prefix_diagnostics_nmnist_seed0
 ```
 
-The multi-seed runner preserves every seed directory and writes aggregate CSV files:
+The multi-seed runner preserves every seed directory and writes aggregate CSV files. Existing runs are never silently reused; choose a new results directory or pass `--overwrite` to replace them explicitly:
 
 ```bash
 python run_prefix_diagnostics_multiseed.py \
@@ -106,7 +106,9 @@ python run_prefix_diagnostics_multiseed.py \
 
 ## Datasets
 
-Supported datasets are Fashion-MNIST, CIFAR-10, N-MNIST, and DVS Gesture. N-MNIST and DVS Gesture require `tonic` and support binary or count event frames. DVS Gesture defaults to spatial downsampling at 64 when no size is supplied.
+Supported datasets are Fashion-MNIST, CIFAR-10, N-MNIST, and DVS Gesture. N-MNIST and DVS Gesture require `tonic` and support binary or count event frames. N-MNIST uses its native 34x34 resolution by default. DVS Gesture alone defaults to spatial downsampling at 64 when no size is supplied.
+
+Binary frames use max-style pooling so an event remains present within each output region. Count frames use area-corrected average pooling to preserve total event count as closely as the pooling geometry permits.
 
 N-MNIST is the first sanity check because earlier experiments indicated strong early-prefix performance. DVS Gesture is then evaluated with both binary and count frames to test whether the observed behavior persists across frame representations.
 
@@ -211,7 +213,7 @@ Threshold-aware controls such as `--lambda-hard-budget`, `--target-timestep`, `-
 
 ## Metrics and Scientific Limitations
 
-Prefix diagnostics include the full accuracy curve, consecutive and ever-regressed rates, negative temporal gain, worst-prefix accuracy, discrete mean prefix accuracy (`prefix_accuracy_auc`), and first/stable-correct statistics. `prefix_accuracy_auc` is a convenient name for the discrete mean, not a continuous integral.
+Prefix diagnostics include the full accuracy curve, population and conditional regression rates, ever-regressed rate, negative temporal gain, worst-prefix accuracy, discrete mean prefix accuracy (`prefix_accuracy_auc`), and first/stable-correct statistics. `prefix_accuracy_auc` is a convenient name for the discrete mean, not a continuous integral.
 
 Existing ChronoSkip metrics remain available: raw, gated, and prefix spike rates; effective, hard-effective, and executed timesteps; layer budgets; and energy proxies. Energy values are analytical proxies, not measured hardware power.
 
