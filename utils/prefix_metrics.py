@@ -24,13 +24,18 @@ def consecutive_regression_rate(prefix_logits: Tensor, targets: Tensor) -> dict[
     correct = _correct_by_prefix(prefix_logits, targets)
     regressed = correct[:, :-1] & ~correct[:, 1:]
     population = regressed.float().mean(dim=0) * 100.0
-    denominator = correct[:, :-1].sum(dim=0)
-    conditional = regressed.sum(dim=0).float() / denominator.clamp_min(1).float() * 100.0
+    correct_count = correct[:, :-1].sum(dim=0)
+    regressed_count = regressed.sum(dim=0)
+    valid = correct_count > 0
+    conditional = torch.zeros_like(population)
+    conditional[valid] = regressed_count[valid].float() / correct_count[valid].float() * 100.0
     mean_population = population.mean() if population.numel() else prefix_logits.new_tensor(0.0)
-    mean_conditional = conditional.mean() if conditional.numel() else prefix_logits.new_tensor(0.0)
+    mean_conditional = conditional[valid].mean() if valid.any() else prefix_logits.new_tensor(0.0)
     return {
         "population_per_transition": population,
         "conditional_per_transition": conditional,
+        "correct_count_per_transition": correct_count,
+        "conditional_valid_transition_mask": valid,
         "mean_population": mean_population,
         "mean_conditional": mean_conditional,
         # Backward-compatible aliases for the original population metric.

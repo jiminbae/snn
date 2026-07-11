@@ -76,6 +76,8 @@ def evaluate_prefix_diagnostics(
         "mean_negative_temporal_gain": float(mean_negative_temporal_gain(curve).item()),
         "population_regression_rate_per_transition": regressions["population_per_transition"].tolist(),
         "conditional_regression_rate_per_transition": regressions["conditional_per_transition"].tolist(),
+        "correct_samples_per_transition": regressions["correct_count_per_transition"].tolist(),
+        "conditional_valid_transition_mask": regressions["conditional_valid_transition_mask"].tolist(),
         "mean_population_regression_rate": float(regressions["mean_population"].item()),
         "mean_conditional_regression_rate": float(regressions["mean_conditional"].item()),
         # Backward-compatible aliases for the original population metric.
@@ -109,14 +111,23 @@ def save_prefix_diagnostics(run_dir: str | Path, metrics: dict[str, Any]) -> Non
 
     population = [float(value) for value in metrics["population_regression_rate_per_transition"]]
     conditional = [float(value) for value in metrics["conditional_regression_rate_per_transition"]]
+    correct_samples = [int(value) for value in metrics["correct_samples_per_transition"]]
+    conditional_valid = [bool(value) for value in metrics["conditional_valid_transition_mask"]]
     with (run_dir / "prefix_regression_curve.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["From Timestep", "To Timestep", "Population Regression Rate", "Conditional Regression Rate"])
+        writer.writerow([
+            "From Timestep",
+            "To Timestep",
+            "Population Regression Rate",
+            "Conditional Regression Rate",
+            "Correct Samples at From Timestep",
+            "Conditional Metric Valid",
+        ])
         writer.writerows(
-            (t, t + 1, population[t - 1], conditional[t - 1])
+            (t, t + 1, population[t - 1], conditional[t - 1], correct_samples[t - 1], conditional_valid[t - 1])
             for t in range(1, len(population) + 1)
         )
 
     plots_dir = run_dir / "plots"
     plot_prefix_accuracy_curve(curve, plots_dir / "prefix_accuracy_curve.png")
-    plot_prefix_regression_curve(population, plots_dir / "prefix_regression_curve.png")
+    plot_prefix_regression_curve(population, conditional, conditional_valid, plots_dir / "prefix_regression_curve.png")

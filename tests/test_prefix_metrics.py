@@ -43,6 +43,17 @@ class PrefixMetricsTest(unittest.TestCase):
         self.assertEqual(float(worst_prefix_accuracy(curve)), 65.0)
         self.assertEqual(float(prefix_accuracy_auc(curve)), 72.5)
 
+    def test_conditional_mean_excludes_transitions_without_correct_samples(self) -> None:
+        logits = torch.tensor([
+            [[0.0, 3.0], [3.0, 0.0], [0.0, 3.0]],
+            [[3.0, 0.0], [0.0, 3.0], [0.0, 3.0]],
+        ])
+        regression = consecutive_regression_rate(logits, self.targets)
+        self.assertEqual(regression["correct_count_per_transition"].tolist(), [0, 2])
+        self.assertEqual(regression["conditional_valid_transition_mask"].tolist(), [False, True])
+        self.assertEqual(regression["conditional_per_transition"].tolist(), [0.0, 50.0])
+        self.assertEqual(float(regression["mean_conditional"]), 50.0)
+
     def test_first_and_stable_correct_timesteps(self) -> None:
         self.assertEqual(first_correct_timestep(self.logits, self.targets).tolist(), [1, 1])
         self.assertEqual(stable_correct_timestep(self.logits, self.targets).tolist(), [3, 4])

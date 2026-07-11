@@ -101,17 +101,30 @@ def plot_prefix_accuracy_curve(values: list[float], output: str | Path) -> None:
     plt.close()
 
 
-def plot_prefix_regression_curve(values: list[float], output: str | Path) -> None:
+def plot_prefix_regression_curve(
+    population_values: list[float],
+    conditional_values: list[float],
+    conditional_valid: list[bool],
+    output: str | Path,
+) -> None:
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    transitions = list(range(1, len(values) + 1))
+    transitions = list(range(1, len(population_values) + 1))
     labels = [f"{t}->{t + 1}" for t in transitions]
+    valid_x = [t for t, valid in zip(transitions, conditional_valid) if valid]
+    valid_y = [value for value, valid in zip(conditional_values, conditional_valid) if valid]
+    invalid_x = [t for t, valid in zip(transitions, conditional_valid) if not valid]
     plt.figure(figsize=(6, 4))
-    plt.plot(transitions, values, marker="o", linewidth=2)
+    plt.plot(transitions, population_values, marker="o", linewidth=2, label="Population")
+    if valid_x:
+        plt.plot(valid_x, valid_y, marker="s", linewidth=2, label="Conditional")
+    if invalid_x:
+        plt.scatter(invalid_x, [0.0] * len(invalid_x), marker="x", label="Conditional unavailable")
     plt.xlabel("Timestep Transition")
     plt.ylabel("Regression Rate (%)")
     plt.title("Correct-to-Incorrect Prefix Regression")
     plt.xticks(transitions, labels)
+    plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(output, dpi=160)
