@@ -1,0 +1,49 @@
+{
+  "dataset": "dvs_gesture",
+  "effective_timestep": 4.241312503814697,
+  "energy_proxy": 0.1909516967853436,
+  "executed_timestep": 4.0,
+  "gated_spike_rate": 0.04502184090740753,
+  "hard_acc": 65.15151515151516,
+  "hard_budget_proxy": {
+    "global": 4.206653594970703
+  },
+  "hard_effective_timestep": 4.0,
+  "hard_prefix_masks": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "hard_prefix_steps": {
+    "global": 4.0
+  },
+  "layer1_effective_timestep": 4.241312503814697,
+  "layer1_hard_timestep": 4.0,
+  "layer2_effective_timestep": 4.241312503814697,
+  "layer2_hard_timestep": 4.0,
+  "loop_energy_proxy": 0.41964877013004187,
+  "model": "global_chronoskip_s2h",
+  "prefix_energy_proxy": 0.41964877013004187,
+  "prefix_spike_rate": 0.10491219253251047,
+  "raw_spike_rate": 0.08174597042979616,
+  "run_name": "event_20260711_094138_global_chronoskip_s2h_T4target",
+  "soft_acc": 66.66666666666667,
+  "test_acc": 65.15151515151516,
+  "test_accuracy": 65.15151515151516,
+  "timestep_gates": [
+    0.8652582764625549,
+    0.7545692324638367,
+    0.6432818174362183,
+    0.5440093278884888,
+    0.4564351439476013,
+    0.3825364410877228,
+    0.32141101360321045,
+    0.27381110191345215
+  ],
+  "tmax": 8
+}
