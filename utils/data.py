@@ -103,14 +103,15 @@ class EventFrameTransform:
         if self.frame_mode == "binary":
             frames = (frames > 0).to(torch.float32)
         if self.downsample_size is not None and frames.shape[-2:] != (self.downsample_size, self.downsample_size):
-            frames = F.interpolate(
-                frames,
-                size=(self.downsample_size, self.downsample_size),
-                mode="bilinear",
-                align_corners=False,
-            )
+            output_size = (self.downsample_size, self.downsample_size)
             if self.frame_mode == "binary":
+                frames = F.adaptive_max_pool2d(frames, output_size)
                 frames = (frames > 0).to(torch.float32)
+            else:
+                old_h, old_w = frames.shape[-2:]
+                new_h, new_w = output_size
+                frames = F.adaptive_avg_pool2d(frames, output_size)
+                frames = frames * (float(old_h * old_w) / float(new_h * new_w))
         return frames
 
 
