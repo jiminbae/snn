@@ -25,12 +25,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     parser.add_argument("--event-frame-mode", choices=["binary", "count"], default="binary")
-    parser.add_argument("--event-downsample-size", type=int, default=64)
+    parser.add_argument("--event-downsample-size", type=int, default=None)
     parser.add_argument("--results-dir", default="results/prefix_diagnostics_multiseed")
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--num-workers", type=int, default=None)
     parser.add_argument("--limit-train-batches", type=int, default=None)
     parser.add_argument("--limit-test-batches", type=int, default=None)
+    parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
 
@@ -68,12 +69,15 @@ def main() -> None:
             "--device", args.device,
             "--seed", str(seed),
             "--event-frame-mode", args.event_frame_mode,
-            "--event-downsample-size", str(args.event_downsample_size),
             "--data-dir", args.data_dir,
             "--results-dir", str(seed_dir),
         ]
+        if args.event_downsample_size is not None:
+            command.extend(["--event-downsample-size", str(args.event_downsample_size)])
         if args.amp:
             command.append("--amp")
+        if args.overwrite:
+            command.append("--overwrite")
         for name in ("num_workers", "limit_train_batches", "limit_test_batches"):
             value = getattr(args, name)
             if value is not None:
