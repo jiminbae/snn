@@ -1,0 +1,53 @@
+Policy,Threshold,Lambda,Accuracy,Average Timestep
+Confidence,0.5,,0.0,8.0
+Confidence,0.5257894992828369,,0.0,8.0
+Confidence,0.551578938961029,,0.0,8.0
+Confidence,0.577368438243866,,0.0,8.0
+Confidence,0.6031578779220581,,0.0,8.0
+Confidence,0.628947377204895,,0.0,8.0
+Confidence,0.6547368764877319,,0.0,8.0
+Confidence,0.6805263161659241,,0.0,8.0
+Confidence,0.706315815448761,,0.0,8.0
+Confidence,0.7321052551269531,,0.0,8.0
+Confidence,0.75789475440979,,0.0,8.0
+Confidence,0.7836841940879822,,0.0,8.0
+Confidence,0.8094736933708191,,0.0,8.0
+Confidence,0.8352631330490112,,0.0,8.0
+Confidence,0.8610526323318481,,0.0,8.0
+Confidence,0.8868421316146851,,0.0,8.0
+Confidence,0.9126315712928772,,0.0,8.0
+Confidence,0.9384210705757141,,0.0,8.0
+Confidence,0.9642105102539062,,0.0,8.0
+Confidence,0.9900000095367432,,0.0,8.0
+Confidence Stability,0.5,,0.0,8.0
+Confidence Stability,0.5257894992828369,,0.0,8.0
+Confidence Stability,0.551578938961029,,0.0,8.0
+Confidence Stability,0.577368438243866,,0.0,8.0
+Confidence Stability,0.6031578779220581,,0.0,8.0
+Confidence Stability,0.628947377204895,,0.0,8.0
+Confidence Stability,0.6547368764877319,,0.0,8.0
+Confidence Stability,0.6805263161659241,,0.0,8.0
+Confidence Stability,0.706315815448761,,0.0,8.0
+Confidence Stability,0.7321052551269531,,0.0,8.0
+Confidence Stability,0.75789475440979,,0.0,8.0
+Confidence Stability,0.7836841940879822,,0.0,8.0
+Confidence Stability,0.8094736933708191,,0.0,8.0
+Confidence Stability,0.8352631330490112,,0.0,8.0
+Confidence Stability,0.8610526323318481,,0.0,8.0
+Confidence Stability,0.8868421316146851,,0.0,8.0
+Confidence Stability,0.9126315712928772,,0.0,8.0
+Confidence Stability,0.9384210705757141,,0.0,8.0
+Confidence Stability,0.9642105102539062,,0.0,8.0
+Confidence Stability,0.9900000095367432,,0.0,8.0
+Cost-Aware Oracle,,0.0,0.0,1.0
+Cost-Aware Oracle,,0.01,0.0,1.0
+Cost-Aware Oracle,,0.02,0.0,1.0
+Cost-Aware Oracle,,0.05,0.0,1.0
+Cost-Aware Oracle,,0.1,0.0,1.0
+Cost-Aware Oracle,,0.2,0.0,1.0
+Cost-Aware Oracle,,0.5,0.0,1.0
+Earliest Correct Oracle,,,0.0,8.0
+Earliest Stable Correct Oracle,,,0.0,8.0
+Entropy,2.3025851249694824,,0.0,1.0
+Fixed T,1.0,,0.0,1.0
+Margin,0.0,,0.0,1.0

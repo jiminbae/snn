@@ -1,0 +1,80 @@
+{
+  "conditional_regression_rate_per_transition": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "conditional_valid_transition_mask": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+  ],
+  "consecutive_regression_rate": 0.0,
+  "consecutive_regression_rate_per_transition": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "correct_samples_per_transition": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "ever_regressed_rate": 0.0,
+  "first_correct_valid_fraction": 0.0,
+  "mean_conditional_regression_rate": 0.0,
+  "mean_first_correct_timestep": 0.0,
+  "mean_negative_temporal_gain": 0.0,
+  "mean_population_regression_rate": 0.0,
+  "mean_stable_correct_timestep": 0.0,
+  "negative_temporal_gain": 0.0,
+  "never_correct_fraction": 100.0,
+  "never_stable_fraction": 100.0,
+  "num_samples": 16,
+  "population_regression_rate_per_transition": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "prefix_accuracy_auc": 0.0,
+  "prefix_accuracy_curve": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "prefix_accuracy_t1": 0.0,
+  "prefix_accuracy_t2": 0.0,
+  "prefix_accuracy_t3": 0.0,
+  "prefix_accuracy_t4": 0.0,
+  "prefix_accuracy_t5": 0.0,
+  "prefix_accuracy_t6": 0.0,
+  "prefix_accuracy_t7": 0.0,
+  "prefix_accuracy_t8": 0.0,
+  "stable_correct_valid_fraction": 0.0,
+  "worst_prefix_accuracy": 0.0
+}
