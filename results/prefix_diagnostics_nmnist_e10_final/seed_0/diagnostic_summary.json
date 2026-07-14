@@ -1,0 +1,10 @@
+{
+  "max_prefix_regret": 28.839997253417962,
+  "mean_prefix_regret": 12.84999755859375,
+  "shared_run": "shared_fixed_lif_T8",
+  "specialist_accuracy_t1": 98.21,
+  "specialist_accuracy_t2": 97.77,
+  "specialist_accuracy_t4": 97.68,
+  "specialist_accuracy_t6": 97.5,
+  "specialist_accuracy_t8": 97.15999603271484
+}

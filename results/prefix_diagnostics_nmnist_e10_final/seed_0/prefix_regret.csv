@@ -1,0 +1,6 @@
+Timestep,Shared Accuracy,Specialist Accuracy,Prefix Regret,Reference
+1,69.37000274658203,98.21,28.839997253417962,independent_specialist
+2,83.7300033569336,97.77,14.039996643066402,independent_specialist
+4,90.98999786376953,97.68,6.690002136230476,independent_specialist
+6,95.67000579833984,97.5,1.8299942016601562,independent_specialist
+8,97.15999603271484,97.15999603271484,0.0,shared_same_budget
