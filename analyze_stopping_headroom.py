@@ -17,6 +17,9 @@ import matplotlib.pyplot as plt
 import torch
 
 from utils.stopping_analysis import (
+    CONFIDENCE_BIN_EDGES,
+    OUTCOME_NAMES,
+    best_policy_by_accuracy_tolerance,
     confidence_stability_stopping,
     confidence_stopping,
     cost_aware_oracle,
@@ -24,9 +27,12 @@ from utils.stopping_analysis import (
     earliest_stable_correct_oracle,
     entropy_stopping,
     evaluate_stopping_policy,
+    global_pareto_frontier,
     margin_stopping,
     pareto_frontier,
+    timestep_confidence_outcome_rows,
     trajectory_outcomes,
+    validate_trajectory_payload,
 )
 
 
@@ -34,11 +40,6 @@ POLICY_FIELDS = [
     "Policy", "Threshold", "Lambda", "Accuracy", "Average Timestep",
     "Normalized Average Timestep", "Error Rate", "Number of Samples",
 ]
-OUTCOME_NAMES = [
-    "safe_stop", "beneficial_continuation", "destructive_continuation", "futile_continuation",
-]
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Analyze temporal stopping headroom from saved prefix trajectories.")
     parser.add_argument("--trajectory-file", required=True)
@@ -46,7 +47,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--confidence-thresholds", type=float, nargs="+")
     parser.add_argument("--entropy-thresholds", type=float, nargs="+")
     parser.add_argument("--margin-thresholds", type=float, nargs="+")
-    parser.add_argument("--cost-lambdas", type=float, nargs="+", default=[0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5])
+    parser.add_argument(
+        "--cost-lambdas",
+        type=float,
+        nargs="+",
+        default=[0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0],
+    )
+    parser.add_argument("--accuracy-tolerances-pp", type=float, nargs="+", default=[0.0, 0.1, 0.5, 1.0, 2.0])
     parser.add_argument("--min-timestep", type=int, default=1)
     parser.add_argument("--stability-window", type=int, default=2)
     return parser.parse_args()
@@ -57,6 +64,14 @@ def write_csv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> None
         writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def load_trajectory(path: Path) -> dict[str, torch.Tensor]:
+    try:
+        return torch.load(path, map_location="cpu", weights_only=True)
+    except TypeError:
+        # Compatibility fallback for trusted local trajectory files on older PyTorch.
+        return torch.load(path, map_location="cpu")
 
 
 def policy_row(
@@ -87,13 +102,15 @@ def outcome_rows_by_confidence(
     confidence: torch.Tensor,
     outcomes: dict[str, torch.Tensor],
 ) -> list[dict[str, Any]]:
-    edges = [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1.0]
     rows = []
-    for index, (lower, upper) in enumerate(zip(edges[:-1], edges[1:])):
-        selected = (confidence >= lower) & (confidence <= upper if index == len(edges) - 2 else confidence < upper)
+    for index, (lower, upper) in enumerate(zip(CONFIDENCE_BIN_EDGES[:-1], CONFIDENCE_BIN_EDGES[1:])):
+        selected = (
+            (confidence >= lower)
+            & (confidence <= upper if index == len(CONFIDENCE_BIN_EDGES) - 2 else confidence < upper)
+        )
         count = int(selected.sum().item())
         row: dict[str, Any] = {
-            "Confidence Bin": f"[{lower:.2f}, {upper:.2f}{']' if index == len(edges) - 2 else ')'}",
+            "Confidence Bin": f"[{lower:.2f}, {upper:.2f}{']' if index == len(CONFIDENCE_BIN_EDGES) - 2 else ')'}",
             "Lower Bound": lower,
             "Upper Bound": upper,
             "Number of Prefix Predictions": count,
@@ -104,10 +121,14 @@ def outcome_rows_by_confidence(
     return rows
 
 
-def plot_tradeoff(rows: list[dict[str, Any]], output: Path) -> None:
+def plot_tradeoff(
+    policy_frontier: list[dict[str, Any]],
+    global_frontier: list[dict[str, Any]],
+    output: Path,
+) -> None:
     plt.figure(figsize=(7, 5))
-    for policy in sorted({str(row["Policy"]) for row in rows}):
-        selected = [row for row in rows if row["Policy"] == policy]
+    for policy in sorted({str(row["Policy"]) for row in policy_frontier}):
+        selected = [row for row in policy_frontier if row["Policy"] == policy]
         plt.plot(
             [float(row["Average Timestep"]) for row in selected],
             [float(row["Accuracy"]) for row in selected],
@@ -115,6 +136,15 @@ def plot_tradeoff(rows: list[dict[str, Any]], output: Path) -> None:
             linewidth=1.5,
             label=policy,
         )
+    plt.scatter(
+        [float(row["Average Timestep"]) for row in global_frontier],
+        [float(row["Accuracy"]) for row in global_frontier],
+        marker="*",
+        s=100,
+        color="black",
+        label="Global Pareto",
+        zorder=5,
+    )
     plt.xlabel("Average Timestep")
     plt.ylabel("Accuracy (%)")
     plt.title("Stopping Accuracy vs. Average Timestep")
@@ -164,11 +194,8 @@ def main() -> None:
     trajectory_path = Path(args.trajectory_file).resolve()
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    payload = torch.load(trajectory_path, map_location="cpu", weights_only=True)
-    required = {"prefix_logits", "targets", "predictions", "confidence", "entropy", "margin", "correct"}
-    missing = required - payload.keys()
-    if missing:
-        raise KeyError(f"Trajectory file is missing fields: {sorted(missing)}")
+    payload = load_trajectory(trajectory_path)
+    n, tmax, classes = validate_trajectory_payload(payload)
 
     logits = payload["prefix_logits"].float()
     targets = payload["targets"].long()
@@ -177,9 +204,6 @@ def main() -> None:
     entropy = payload["entropy"].float()
     margin = payload["margin"].float()
     correct = payload["correct"].bool()
-    if logits.ndim != 3:
-        raise ValueError("prefix_logits must have shape [N,T,C].")
-    n, tmax, classes = logits.shape
     minimum = max(1, min(args.min_timestep, tmax))
 
     confidence_thresholds = args.confidence_thresholds or torch.linspace(0.50, 0.99, 20).tolist()
@@ -242,6 +266,7 @@ def main() -> None:
     outcomes = trajectory_outcomes(correct)
     timestep_outcomes = outcome_rows_by_timestep(outcomes)
     confidence_outcomes = outcome_rows_by_confidence(confidence, outcomes)
+    timestep_confidence_outcomes = timestep_confidence_outcome_rows(confidence, outcomes)
     write_csv(
         output_dir / "trajectory_outcomes_by_timestep.csv",
         timestep_outcomes,
@@ -252,12 +277,31 @@ def main() -> None:
         confidence_outcomes,
         ["Confidence Bin", "Lower Bound", "Upper Bound", "Number of Prefix Predictions", *OUTCOME_NAMES],
     )
+    write_csv(
+        output_dir / "trajectory_outcomes_by_timestep_and_confidence_bin.csv",
+        timestep_confidence_outcomes,
+        [
+            "Timestep", "Confidence Bin", "Lower Bound", "Upper Bound", "Number of Samples",
+            *OUTCOME_NAMES,
+        ],
+    )
 
     all_rows = [*fixed_rows, *confidence_rows, *entropy_rows, *margin_rows, *stability_rows, *oracle_rows]
     frontier = pareto_frontier(all_rows)
+    global_frontier = global_pareto_frontier(all_rows)
     write_csv(
         output_dir / "pareto_frontier.csv",
         frontier,
+        ["Policy", "Threshold", "Lambda", "Accuracy", "Average Timestep"],
+    )
+    write_csv(
+        output_dir / "pareto_frontier_by_policy.csv",
+        frontier,
+        ["Policy", "Threshold", "Lambda", "Accuracy", "Average Timestep"],
+    )
+    write_csv(
+        output_dir / "global_pareto_frontier.csv",
+        global_frontier,
         ["Policy", "Threshold", "Lambda", "Accuracy", "Average Timestep"],
     )
 
@@ -269,6 +313,11 @@ def main() -> None:
         selected_levels[f"{int(fraction * 100)}_percent_of_final"] = (
             min(eligible, key=lambda row: float(row["Average Timestep"])) if eligible else None
         )
+    tolerance_policies = best_policy_by_accuracy_tolerance(
+        confidence_rows,
+        final_accuracy,
+        args.accuracy_tolerances_pp,
+    )
 
     confidence_frontier = [row for row in frontier if row["Policy"] == "Confidence"]
     oracle_candidates = cost_rows + [earliest_correct_row, earliest_stable_row]
@@ -292,6 +341,7 @@ def main() -> None:
         "min_timestep": minimum,
         "fixed_t_accuracy": {f"T{index}": row["Accuracy"] for index, row in enumerate(fixed_rows, start=1)},
         "best_confidence_policy_at_selected_accuracy_levels": selected_levels,
+        "best_confidence_policy_by_accuracy_tolerance_pp": tolerance_policies,
         "earliest_correct_oracle": earliest_correct_row,
         "earliest_stable_correct_oracle": earliest_stable_row,
         "cost_aware_oracle_results": cost_rows,
@@ -300,13 +350,14 @@ def main() -> None:
             "accuracy_and_outcome_unit": "percentage_points_0_to_100",
             "average_timestep": "one_based",
             "normalized_cost": "timestep_divided_by_T",
+            "cost_aware_oracle_objective": "Cost-aware oracle minimizes: classification_error + lambda_cost * timestep / T",
             "oracle_warning": "Earliest-correct, earliest-stable-correct, and cost-aware policies use ground-truth labels and are not deployable stopping policies.",
         },
     }
     with (output_dir / "stopping_summary.json").open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, sort_keys=True)
 
-    plot_tradeoff(frontier, output_dir / "accuracy_vs_average_timestep.png")
+    plot_tradeoff(frontier, global_frontier, output_dir / "accuracy_vs_average_timestep.png")
     plot_outcomes_by_timestep(timestep_outcomes, output_dir / "trajectory_outcomes_by_timestep.png")
     plot_confidence_bins(confidence_outcomes, output_dir / "confidence_bin_outcomes.png")
     print(f"Saved stopping headroom analysis to: {output_dir}")
