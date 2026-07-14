@@ -64,6 +64,35 @@ plots/prefix_regression_curve.png
 
 Prefix logits are normalized by the number of observed timesteps at each prefix. For static datasets, the same mechanism measures recurrent integration rather than newly arriving temporal evidence.
 
+### Stopping Headroom Analysis
+
+Sample-wise prefix trajectories can be saved for repeated post-hoc stopping analysis without retraining:
+
+```bash
+python train.py \
+  --model fixed_lif \
+  --dataset nmnist \
+  --epochs 10 \
+  --batch-size 256 \
+  --tmax 8 \
+  --device cuda \
+  --amp \
+  --prefix-diagnostics \
+  --save-prefix-trajectories \
+  --results-dir results/stopping_headroom_nmnist \
+  --run-name shared_fixed_lif_T8
+```
+
+Analyze fixed-timestep inference, confidence/entropy/margin/stability stopping, and ground-truth oracle headroom:
+
+```bash
+python analyze_stopping_headroom.py \
+  --trajectory-file results/stopping_headroom_nmnist/shared_fixed_lif_T8/prefix_trajectories.pt \
+  --output-dir results/stopping_headroom_nmnist/shared_fixed_lif_T8/stopping_analysis
+```
+
+The earliest-correct, earliest-stable-correct, and cost-aware policies use labels and are analysis-only oracles, not deployable stopping rules. The initial normalized timestep cost is `t/T`.
+
 ## Shared Model vs Prefix Specialists
 
 A **shared anytime model** is one model expected to operate at several prefix lengths. A **prefix specialist** is trained using one fixed prefix length. Their matched-budget difference is reported as:
