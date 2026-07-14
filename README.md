@@ -88,10 +88,13 @@ Analyze fixed-timestep inference, confidence/entropy/margin/stability stopping, 
 ```bash
 python analyze_stopping_headroom.py \
   --trajectory-file results/stopping_headroom_nmnist/shared_fixed_lif_T8/prefix_trajectories.pt \
-  --output-dir results/stopping_headroom_nmnist/shared_fixed_lif_T8/stopping_analysis
+  --output-dir results/stopping_headroom_nmnist/shared_fixed_lif_T8/stopping_analysis \
+  --accuracy-tolerances-pp 0 0.1 0.5 1.0 2.0
 ```
 
-The earliest-correct, earliest-stable-correct, and cost-aware policies use labels and are analysis-only oracles, not deployable stopping rules. The initial normalized timestep cost is `t/T`.
+The earliest-correct, earliest-stable-correct, and cost-aware policies use labels and are analysis-only oracles, not deployable stopping rules. The cost-aware objective is `classification_error + lambda_cost * t/T`. Its default lambda grid extends to 16 because classification error is binary (0 or 1), so values below 1 alone often do not expose the accuracy-cost trade-off.
+
+`--accuracy-tolerances-pp` selects the fastest confidence policy within an absolute percentage-point drop from final-T accuracy. `pareto_frontier_by_policy.csv` removes dominated settings within each family, while `global_pareto_frontier.csv` compares all policy families together. `trajectory_outcomes_by_timestep_and_confidence_bin.csv` conditions continuation outcomes jointly on timestep and confidence instead of mixing all prefixes.
 
 ## Shared Model vs Prefix Specialists
 
