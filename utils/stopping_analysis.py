@@ -9,6 +9,47 @@ import torch
 from torch import Tensor
 
 
+OUTCOME_NAMES = (
+    "safe_stop",
+    "beneficial_continuation",
+    "destructive_continuation",
+    "futile_continuation",
+)
+CONFIDENCE_BIN_EDGES = (0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1.0)
+
+
+def validate_trajectory_payload(payload: dict[str, Any]) -> tuple[int, int, int]:
+    """Validate required trajectory tensors and return (N, T, C)."""
+    if not isinstance(payload, dict):
+        raise ValueError("Trajectory payload must be a dictionary of tensors.")
+    required = {"prefix_logits", "targets", "predictions", "confidence", "entropy", "margin", "correct"}
+    missing = required - payload.keys()
+    if missing:
+        raise ValueError(f"Trajectory payload is missing fields: {sorted(missing)}")
+    if any(not isinstance(payload[key], Tensor) for key in required):
+        raise ValueError("All required trajectory payload fields must be torch tensors.")
+
+    logits = payload["prefix_logits"]
+    targets = payload["targets"]
+    if logits.ndim != 3:
+        raise ValueError("prefix_logits must have shape [N,T,C].")
+    n, tmax, classes = logits.shape
+    if n <= 0 or tmax <= 0:
+        raise ValueError("Trajectory payload must have N > 0 and T > 0.")
+    if classes < 2:
+        raise ValueError("Trajectory payload must have C >= 2.")
+    if targets.ndim != 1 or targets.shape[0] != n:
+        raise ValueError(f"targets must have shape [{n}].")
+    for key in ("predictions", "confidence", "entropy", "margin", "correct"):
+        value = payload[key]
+        if value.ndim != 2 or value.shape != (n, tmax):
+            raise ValueError(f"{key} must have shape [{n},{tmax}].")
+    for key in ("prefix_logits", "confidence", "entropy", "margin"):
+        if not torch.isfinite(payload[key]).all():
+            raise ValueError(f"{key} contains NaN or Inf values.")
+    return n, tmax, classes
+
+
 def first_satisfied_timestep(condition: Tensor, min_timestep: int = 1) -> Tensor:
     """Return 1-based first true timestep, falling back to the final timestep."""
     if condition.ndim != 2:
@@ -37,6 +78,12 @@ def evaluate_stopping_policy(
     if predictions.ndim != 2 or targets.ndim != 1:
         raise ValueError("predictions and targets must have shapes [N,T] and [N].")
     n, tmax = predictions.shape
+    if n <= 0 or tmax <= 0 or targets.shape[0] != n:
+        raise ValueError("predictions and targets must contain matching non-empty samples.")
+    if stop_timesteps.ndim != 1 or stop_timesteps.shape[0] != n:
+        raise ValueError(f"stop_timesteps must have shape [{n}].")
+    if not torch.all((stop_timesteps >= 1) & (stop_timesteps <= tmax)):
+        raise ValueError(f"stop_timesteps must be within [1, {tmax}].")
     selected = predictions.gather(1, (stop_timesteps.long() - 1).unsqueeze(1)).squeeze(1)
     accuracy = selected.eq(targets).float().mean().item() * 100.0
     average_timestep = stop_timesteps.float().mean().item()
@@ -126,6 +173,36 @@ def trajectory_outcomes(correct: Tensor) -> dict[str, Tensor]:
     }
 
 
+def timestep_confidence_outcome_rows(
+    confidence: Tensor,
+    outcomes: dict[str, Tensor],
+    edges: tuple[float, ...] = CONFIDENCE_BIN_EDGES,
+) -> list[dict[str, Any]]:
+    """Return outcome percentages conditioned jointly on timestep and confidence bin."""
+    if confidence.ndim != 2:
+        raise ValueError("confidence must have shape [N,T].")
+    if any(mask.shape != confidence.shape for mask in outcomes.values()):
+        raise ValueError("All outcome masks must match confidence shape [N,T].")
+    rows: list[dict[str, Any]] = []
+    for timestep in range(confidence.shape[1]):
+        values = confidence[:, timestep]
+        for index, (lower, upper) in enumerate(zip(edges[:-1], edges[1:])):
+            is_last = index == len(edges) - 2
+            selected = (values >= lower) & (values <= upper if is_last else values < upper)
+            count = int(selected.sum().item())
+            row: dict[str, Any] = {
+                "Timestep": timestep + 1,
+                "Confidence Bin": f"[{lower:.2f}, {upper:.2f}{']' if is_last else ')'}",
+                "Lower Bound": lower,
+                "Upper Bound": upper,
+                "Number of Samples": count,
+            }
+            for name in OUTCOME_NAMES:
+                row[name] = float(outcomes[name][:, timestep][selected].float().mean().item() * 100.0) if count else 0.0
+            rows.append(row)
+    return rows
+
+
 def pareto_frontier(rows: Iterable[dict[str, Any]], group_key: str = "Policy") -> list[dict[str, Any]]:
     """Remove accuracy/timestep dominated points independently per policy family."""
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -149,3 +226,41 @@ def pareto_frontier(rows: Iterable[dict[str, Any]], group_key: str = "Policy") -
             if not dominated:
                 frontier.append(candidate)
     return sorted(frontier, key=lambda row: (str(row[group_key]), float(row["Average Timestep"])))
+
+
+def global_pareto_frontier(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove dominated points while comparing all policy families together."""
+    all_rows = list(rows)
+    frontier = []
+    for candidate in all_rows:
+        accuracy = float(candidate["Accuracy"])
+        timestep = float(candidate["Average Timestep"])
+        dominated = any(
+            float(other["Accuracy"]) >= accuracy
+            and float(other["Average Timestep"]) <= timestep
+            and (float(other["Accuracy"]) > accuracy or float(other["Average Timestep"]) < timestep)
+            for other in all_rows
+            if other is not candidate
+        )
+        if not dominated:
+            frontier.append(candidate)
+    return sorted(frontier, key=lambda row: (float(row["Average Timestep"]), -float(row["Accuracy"])))
+
+
+def best_policy_by_accuracy_tolerance(
+    rows: Iterable[dict[str, Any]],
+    final_accuracy: float,
+    tolerances_pp: Iterable[float],
+) -> dict[str, dict[str, Any] | None]:
+    """Select the fastest policy meeting final accuracy minus each pp tolerance."""
+    candidates = list(rows)
+    selected: dict[str, dict[str, Any] | None] = {}
+    for tolerance in tolerances_pp:
+        tolerance = float(tolerance)
+        eligible = [row for row in candidates if float(row["Accuracy"]) >= final_accuracy - tolerance]
+        selected[str(tolerance)] = (
+            min(eligible, key=lambda row: (float(row["Average Timestep"]), -float(row["Accuracy"])))
+            if eligible
+            else None
+        )
+    return selected
