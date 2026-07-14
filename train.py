@@ -70,6 +70,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit-train-batches", type=int, default=None)
     parser.add_argument("--limit-test-batches", type=int, default=None)
     parser.add_argument("--prefix-diagnostics", action="store_true")
+    parser.add_argument("--save-prefix-trajectories", action="store_true")
     return parser.parse_args()
 
 
@@ -509,7 +510,14 @@ def main() -> None:
     model_state = snapshot_model_state(model, args)
     prefix_metrics: dict[str, Any] = {}
     if args.prefix_diagnostics:
-        prefix_metrics = evaluate_prefix_diagnostics(model, test_loader, device, args)
+        trajectory_path = run_dir / "prefix_trajectories.pt" if args.save_prefix_trajectories else None
+        prefix_metrics = evaluate_prefix_diagnostics(
+            model,
+            test_loader,
+            device,
+            args,
+            trajectory_path=trajectory_path,
+        )
         save_prefix_diagnostics(run_dir, prefix_metrics)
     summary = {
         "run_name": run_name,

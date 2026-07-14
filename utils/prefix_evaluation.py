@@ -31,6 +31,7 @@ def evaluate_prefix_diagnostics(
     loader: torch.utils.data.DataLoader,
     device: torch.device,
     args: Any,
+    trajectory_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Aggregate prefix diagnostics over samples, never over batch percentages."""
     model.eval()
@@ -62,6 +63,26 @@ def evaluate_prefix_diagnostics(
         raise RuntimeError("Prefix diagnostics received no evaluation batches.")
     prefix_logits = torch.cat(all_logits, dim=0)
     targets = torch.cat(all_targets, dim=0)
+    if trajectory_path is not None:
+        probabilities = torch.softmax(prefix_logits.float(), dim=-1)
+        top2 = probabilities.topk(k=min(2, probabilities.shape[-1]), dim=-1).values
+        confidence = top2[..., 0]
+        margin = top2[..., 0] - top2[..., 1] if top2.shape[-1] > 1 else top2[..., 0]
+        predictions = prefix_logits.argmax(dim=-1)
+        trajectory_path = Path(trajectory_path)
+        trajectory_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "prefix_logits": prefix_logits.float(),
+                "targets": targets.long(),
+                "predictions": predictions,
+                "confidence": confidence,
+                "entropy": -(probabilities * torch.log(probabilities.clamp_min(1e-12))).sum(dim=-1),
+                "margin": margin,
+                "correct": predictions.eq(targets[:, None]),
+            },
+            trajectory_path,
+        )
     curve = prefix_accuracy_curve(prefix_logits, targets)
     regressions = consecutive_regression_rate(prefix_logits, targets)
     first = first_correct_timestep(prefix_logits, targets)
