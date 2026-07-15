@@ -1,0 +1,80 @@
+{
+  "conditional_regression_rate_per_transition": [
+    4.166065692901611,
+    4.203989028930664,
+    0.33269962668418884,
+    0.307726114988327,
+    0.7883948087692261,
+    0.28222012519836426,
+    0.4952027499675751
+  ],
+  "conditional_valid_transition_mask": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ],
+  "consecutive_regression_rate": 1.209999918937683,
+  "consecutive_regression_rate_per_transition": [
+    2.8899998664855957,
+    3.5199999809265137,
+    0.2800000011920929,
+    0.2800000011920929,
+    0.75,
+    0.27000001072883606,
+    0.48000001907348633
+  ],
+  "correct_samples_per_transition": [
+    6937,
+    8373,
+    8416,
+    9099,
+    9513,
+    9567,
+    9693
+  ],
+  "ever_regressed_rate": 8.280900955200195,
+  "first_correct_valid_fraction": 98.54000210762024,
+  "mean_conditional_regression_rate": 1.5108997821807861,
+  "mean_first_correct_timestep": 1.5953927040100098,
+  "mean_negative_temporal_gain": 0.0,
+  "mean_population_regression_rate": 1.209999918937683,
+  "mean_stable_correct_timestep": 1.8146356344223022,
+  "negative_temporal_gain": 0.0,
+  "never_correct_fraction": 1.4600000344216824,
+  "never_stable_fraction": 2.84000001847744,
+  "num_samples": 10000,
+  "population_regression_rate_per_transition": [
+    2.8899998664855957,
+    3.5199999809265137,
+    0.2800000011920929,
+    0.2800000011920929,
+    0.75,
+    0.27000001072883606,
+    0.48000001907348633
+  ],
+  "prefix_accuracy_auc": 89.14249420166016,
+  "prefix_accuracy_curve": [
+    69.37000274658203,
+    83.7300033569336,
+    84.16000366210938,
+    90.98999786376953,
+    95.1300048828125,
+    95.67000579833984,
+    96.93000030517578,
+    97.15999603271484
+  ],
+  "prefix_accuracy_t1": 69.37000274658203,
+  "prefix_accuracy_t2": 83.7300033569336,
+  "prefix_accuracy_t3": 84.16000366210938,
+  "prefix_accuracy_t4": 90.98999786376953,
+  "prefix_accuracy_t5": 95.1300048828125,
+  "prefix_accuracy_t6": 95.67000579833984,
+  "prefix_accuracy_t7": 96.93000030517578,
+  "prefix_accuracy_t8": 97.15999603271484,
+  "stable_correct_valid_fraction": 97.15999960899353,
+  "worst_prefix_accuracy": 69.37000274658203
+}
