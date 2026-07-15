@@ -1,0 +1,80 @@
+{
+  "conditional_regression_rate_per_transition": [
+    9.836065292358398,
+    9.756096839904785,
+    2.941176414489746,
+    5.084745407104492,
+    5.780346870422363,
+    3.5928144454956055,
+    0.5988024473190308
+  ],
+  "conditional_valid_transition_mask": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ],
+  "consecutive_regression_rate": 3.192641019821167,
+  "consecutive_regression_rate_per_transition": [
+    4.545454502105713,
+    6.060606002807617,
+    1.89393949508667,
+    3.409090995788574,
+    3.78787899017334,
+    2.2727272510528564,
+    0.3787878751754761
+  ],
+  "correct_samples_per_transition": [
+    122,
+    164,
+    170,
+    177,
+    173,
+    167,
+    167
+  ],
+  "ever_regressed_rate": 26.02739715576172,
+  "first_correct_valid_fraction": 82.95454382896423,
+  "mean_conditional_regression_rate": 5.370007038116455,
+  "mean_first_correct_timestep": 1.844748854637146,
+  "mean_negative_temporal_gain": 0.5411257147789001,
+  "mean_population_regression_rate": 3.192641019821167,
+  "mean_stable_correct_timestep": 2.232558250427246,
+  "negative_temporal_gain": 3.7878799438476562,
+  "never_correct_fraction": 17.045454680919647,
+  "never_stable_fraction": 34.84848439693451,
+  "num_samples": 264,
+  "population_regression_rate_per_transition": [
+    4.545454502105713,
+    6.060606002807617,
+    1.89393949508667,
+    3.409090995788574,
+    3.78787899017334,
+    2.2727272510528564,
+    0.3787878751754761
+  ],
+  "prefix_accuracy_auc": 62.121212005615234,
+  "prefix_accuracy_curve": [
+    46.212120056152344,
+    62.121212005615234,
+    64.39393615722656,
+    67.04545593261719,
+    65.53030395507812,
+    63.25757598876953,
+    63.25757598876953,
+    65.1515121459961
+  ],
+  "prefix_accuracy_t1": 46.212120056152344,
+  "prefix_accuracy_t2": 62.121212005615234,
+  "prefix_accuracy_t3": 64.39393615722656,
+  "prefix_accuracy_t4": 67.04545593261719,
+  "prefix_accuracy_t5": 65.53030395507812,
+  "prefix_accuracy_t6": 63.25757598876953,
+  "prefix_accuracy_t7": 63.25757598876953,
+  "prefix_accuracy_t8": 65.1515121459961,
+  "stable_correct_valid_fraction": 65.15151262283325,
+  "worst_prefix_accuracy": 46.212120056152344
+}

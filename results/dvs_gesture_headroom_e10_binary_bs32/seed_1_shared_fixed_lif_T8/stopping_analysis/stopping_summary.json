@@ -1,0 +1,401 @@
+{
+  "C": 11,
+  "N": 264,
+  "T": 8,
+  "best_confidence_policy_at_selected_accuracy_levels": {
+    "90_percent_of_final": {
+      "Accuracy": 56.81818127632141,
+      "Average Timestep": 2.1628787517547607,
+      "Error Rate": 43.18181872367859,
+      "Lambda": "",
+      "Normalized Average Timestep": 0.2703598439693451,
+      "Number of Samples": 264,
+      "Policy": "Confidence",
+      "Threshold": 0.65
+    },
+    "95_percent_of_final": {
+      "Accuracy": 62.12121248245239,
+      "Average Timestep": 3.696969747543335,
+      "Error Rate": 37.87878751754761,
+      "Lambda": "",
+      "Normalized Average Timestep": 0.46212121844291687,
+      "Number of Samples": 264,
+      "Policy": "Confidence",
+      "Threshold": 0.8
+    },
+    "99_percent_of_final": {
+      "Accuracy": 62.12121248245239,
+      "Average Timestep": 3.696969747543335,
+      "Error Rate": 37.87878751754761,
+      "Lambda": "",
+      "Normalized Average Timestep": 0.46212121844291687,
+      "Number of Samples": 264,
+      "Policy": "Confidence",
+      "Threshold": 0.8
+    }
+  },
+  "best_confidence_policy_by_accuracy_tolerance_pp": {
+    "0.0": {
+      "Accuracy": 62.12121248245239,
+      "Average Timestep": 3.696969747543335,
+      "Error Rate": 37.87878751754761,
+      "Lambda": "",
+      "Normalized Average Timestep": 0.46212121844291687,
+      "Number of Samples": 264,
+      "Policy": "Confidence",
+      "Threshold": 0.8
+    },
+    "0.1": {
+      "Accuracy": 62.12121248245239,
+      "Average Timestep": 3.696969747543335,
+      "Error Rate": 37.87878751754761,
+      "Lambda": "",
+      "Normalized Average Timestep": 0.46212121844291687,
+      "Number of Samples": 264,
+      "Policy": "Confidence",
+      "Threshold": 0.8
+    },
+    "0.5": {
+      "Accuracy": 62.12121248245239,
+      "Average Timestep": 3.696969747543335,
+      "Error Rate": 37.87878751754761,
+      "Lambda": "",
+      "Normalized Average Timestep": 0.46212121844291687,
+      "Number of Samples": 264,
+      "Policy": "Confidence",
+      "Threshold": 0.8
+    },
+    "1.0": {
+      "Accuracy": 62.12121248245239,
+      "Average Timestep": 3.696969747543335,
+      "Error Rate": 37.87878751754761,
+      "Lambda": "",
+      "Normalized Average Timestep": 0.46212121844291687,
+      "Number of Samples": 264,
+      "Policy": "Confidence",
+      "Threshold": 0.8
+    },
+    "2.0": {
+      "Accuracy": 62.12121248245239,
+      "Average Timestep": 3.696969747543335,
+      "Error Rate": 37.87878751754761,
+      "Lambda": "",
+      "Normalized Average Timestep": 0.46212121844291687,
+      "Number of Samples": 264,
+      "Policy": "Confidence",
+      "Threshold": 0.8
+    }
+  },
+  "confidence_to_oracle_pareto_gap": [
+    {
+      "average_timestep_gap": 0.25757575035095215,
+      "confidence_accuracy": 53.03030014038086,
+      "confidence_average_timestep": 1.375,
+      "confidence_threshold": 0.5,
+      "oracle_average_timestep_at_least_accuracy": 1.1174242496490479
+    },
+    {
+      "average_timestep_gap": 0.44696974754333496,
+      "confidence_accuracy": 54.54545617103577,
+      "confidence_average_timestep": 1.5643939971923828,
+      "confidence_threshold": 0.55,
+      "oracle_average_timestep_at_least_accuracy": 1.1174242496490479
+    },
+    {
+      "average_timestep_gap": 0.6439393758773804,
+      "confidence_accuracy": 54.924243688583374,
+      "confidence_average_timestep": 1.7613636255264282,
+      "confidence_threshold": 0.6,
+      "oracle_average_timestep_at_least_accuracy": 1.1174242496490479
+    },
+    {
+      "average_timestep_gap": 1.045454502105713,
+      "confidence_accuracy": 56.81818127632141,
+      "confidence_average_timestep": 2.1628787517547607,
+      "confidence_threshold": 0.65,
+      "oracle_average_timestep_at_least_accuracy": 1.1174242496490479
+    },
+    {
+      "average_timestep_gap": 1.954545497894287,
+      "confidence_accuracy": 57.95454382896423,
+      "confidence_average_timestep": 3.071969747543335,
+      "confidence_threshold": 0.75,
+      "oracle_average_timestep_at_least_accuracy": 1.1174242496490479
+    },
+    {
+      "average_timestep_gap": 2.405303120613098,
+      "confidence_accuracy": 62.12121248245239,
+      "confidence_average_timestep": 3.696969747543335,
+      "confidence_threshold": 0.8,
+      "oracle_average_timestep_at_least_accuracy": 1.2916666269302368
+    },
+    {
+      "average_timestep_gap": 3.068181872367859,
+      "confidence_accuracy": 62.5,
+      "confidence_average_timestep": 4.359848499298096,
+      "confidence_threshold": 0.85,
+      "oracle_average_timestep_at_least_accuracy": 1.2916666269302368
+    }
+  ],
+  "cost_aware_oracle_results": [
+    {
+      "Accuracy": 76.13636255264282,
+      "Average Timestep": 1.5303030014038086,
+      "Error Rate": 23.863637447357178,
+      "Lambda": 0.0,
+      "Normalized Average Timestep": 0.19128787517547607,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 76.13636255264282,
+      "Average Timestep": 1.5303030014038086,
+      "Error Rate": 23.863637447357178,
+      "Lambda": 0.5,
+      "Normalized Average Timestep": 0.19128787517547607,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 76.13636255264282,
+      "Average Timestep": 1.5303030014038086,
+      "Error Rate": 23.863637447357178,
+      "Lambda": 1.0,
+      "Normalized Average Timestep": 0.19128787517547607,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 76.13636255264282,
+      "Average Timestep": 1.5303030014038086,
+      "Error Rate": 23.863637447357178,
+      "Lambda": 1.1,
+      "Normalized Average Timestep": 0.19128787517547607,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 75.75757503509521,
+      "Average Timestep": 1.503787875175476,
+      "Error Rate": 24.242424964904785,
+      "Lambda": 1.15,
+      "Normalized Average Timestep": 0.1879734843969345,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 75.75757503509521,
+      "Average Timestep": 1.503787875175476,
+      "Error Rate": 24.242424964904785,
+      "Lambda": 1.25,
+      "Normalized Average Timestep": 0.1879734843969345,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 75.0,
+      "Average Timestep": 1.4583333730697632,
+      "Error Rate": 25.0,
+      "Lambda": 1.35,
+      "Normalized Average Timestep": 0.1822916716337204,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 75.0,
+      "Average Timestep": 1.4583333730697632,
+      "Error Rate": 25.0,
+      "Lambda": 1.5,
+      "Normalized Average Timestep": 0.1822916716337204,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 74.24242496490479,
+      "Average Timestep": 1.420454502105713,
+      "Error Rate": 25.757575035095215,
+      "Lambda": 1.6,
+      "Normalized Average Timestep": 0.1775568127632141,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 74.24242496490479,
+      "Average Timestep": 1.420454502105713,
+      "Error Rate": 25.757575035095215,
+      "Lambda": 1.75,
+      "Normalized Average Timestep": 0.1775568127632141,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 72.72727489471436,
+      "Average Timestep": 1.3598484992980957,
+      "Error Rate": 27.272725105285645,
+      "Lambda": 2.0,
+      "Normalized Average Timestep": 0.16998106241226196,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 72.72727489471436,
+      "Average Timestep": 1.3598484992980957,
+      "Error Rate": 27.272725105285645,
+      "Lambda": 2.25,
+      "Normalized Average Timestep": 0.16998106241226196,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 72.72727489471436,
+      "Average Timestep": 1.3598484992980957,
+      "Error Rate": 27.272725105285645,
+      "Lambda": 2.5,
+      "Normalized Average Timestep": 0.16998106241226196,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 70.45454382896423,
+      "Average Timestep": 1.2916666269302368,
+      "Error Rate": 29.545456171035767,
+      "Lambda": 2.75,
+      "Normalized Average Timestep": 0.1614583283662796,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 70.45454382896423,
+      "Average Timestep": 1.2916666269302368,
+      "Error Rate": 29.545456171035767,
+      "Lambda": 3.0,
+      "Normalized Average Timestep": 0.1614583283662796,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 70.45454382896423,
+      "Average Timestep": 1.2916666269302368,
+      "Error Rate": 29.545456171035767,
+      "Lambda": 3.5,
+      "Normalized Average Timestep": 0.1614583283662796,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 61.742424964904785,
+      "Average Timestep": 1.1174242496490479,
+      "Error Rate": 38.257575035095215,
+      "Lambda": 4.0,
+      "Normalized Average Timestep": 0.13967803120613098,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 61.742424964904785,
+      "Average Timestep": 1.1174242496490479,
+      "Error Rate": 38.257575035095215,
+      "Lambda": 5.0,
+      "Normalized Average Timestep": 0.13967803120613098,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 61.742424964904785,
+      "Average Timestep": 1.1174242496490479,
+      "Error Rate": 38.257575035095215,
+      "Lambda": 6.0,
+      "Normalized Average Timestep": 0.13967803120613098,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 61.742424964904785,
+      "Average Timestep": 1.1174242496490479,
+      "Error Rate": 38.257575035095215,
+      "Lambda": 7.0,
+      "Normalized Average Timestep": 0.13967803120613098,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 50.0,
+      "Average Timestep": 1.0,
+      "Error Rate": 50.0,
+      "Lambda": 8.0,
+      "Normalized Average Timestep": 0.125,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    },
+    {
+      "Accuracy": 50.0,
+      "Average Timestep": 1.0,
+      "Error Rate": 50.0,
+      "Lambda": 16.0,
+      "Normalized Average Timestep": 0.125,
+      "Number of Samples": 264,
+      "Policy": "Cost-Aware Oracle",
+      "Threshold": ""
+    }
+  ],
+  "earliest_correct_oracle": {
+    "Accuracy": 76.13636255264282,
+    "Average Timestep": 3.2007575035095215,
+    "Error Rate": 23.863637447357178,
+    "Lambda": "",
+    "Normalized Average Timestep": 0.4000946879386902,
+    "Number of Samples": 264,
+    "Policy": "Earliest Correct Oracle",
+    "Threshold": ""
+  },
+  "earliest_stable_correct_oracle": {
+    "Accuracy": 62.12121248245239,
+    "Average Timestep": 4.25,
+    "Error Rate": 37.87878751754761,
+    "Lambda": "",
+    "Normalized Average Timestep": 0.53125,
+    "Number of Samples": 264,
+    "Policy": "Earliest Stable Correct Oracle",
+    "Threshold": ""
+  },
+  "fixed_t_accuracy": {
+    "T1": 50.0,
+    "T2": 56.439393758773804,
+    "T3": 61.742424964904785,
+    "T4": 61.36363744735718,
+    "T5": 61.742424964904785,
+    "T6": 62.12121248245239,
+    "T7": 62.12121248245239,
+    "T8": 62.12121248245239
+  },
+  "metadata": {
+    "accuracy_and_outcome_unit": "percentage_points_0_to_100",
+    "average_timestep": "one_based",
+    "cost_aware_oracle_objective": "Cost-aware oracle minimizes: classification_error + lambda_cost * timestep / T",
+    "normalized_cost": "timestep_divided_by_T",
+    "oracle_warning": "Earliest-correct, earliest-stable-correct, and cost-aware policies use ground-truth labels and are not deployable stopping policies."
+  },
+  "min_timestep": 1,
+  "trajectory_file": "/home/jmbae/snn/results/dvs_gesture_headroom_e10_binary_bs32/seed_1_shared_fixed_lif_T8/prefix_trajectories.pt"
+}
