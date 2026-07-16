@@ -17,7 +17,7 @@ class TemporalReliabilityAggregateTests(unittest.TestCase):
     def test_regression_reduction_with_preserved_recovery_is_go(self):
         rows = []
         for seed in range(3):
-            rows += [record("final_ce", seed, 10, 10), record("symmetric_kl", seed, 8, 9),
+            rows += [record("final_ce", seed, 10, 10), record("all_prefix_ce", seed, 9, 9), record("symmetric_kl", seed, 8, 9),
                      record("selective_regression_thr0.8", seed, 6, 9.5, prefix=66)]
         self.assertEqual(recommendation_from_records(rows)[0], "go")
 
@@ -25,30 +25,39 @@ class TemporalReliabilityAggregateTests(unittest.TestCase):
         for beneficial, accuracy in ((7.0, 70.0), (10.0, 68.9)):
             rows = []
             for seed in range(3):
-                rows += [record("final_ce", seed, 10, 10),
+                rows += [record("final_ce", seed, 10, 10), record("all_prefix_ce", seed, 9, 9), record("symmetric_kl", seed, 8, 9),
                          record("selective_regression_thr0.8", seed, 5, beneficial, accuracy=accuracy)]
             self.assertNotEqual(recommendation_from_records(rows)[0], "go")
 
     def test_one_improved_seed_is_no_go(self):
         rows = []
         for seed in range(3):
-            rows += [record("final_ce", seed, 10, 10),
+            rows += [record("final_ce", seed, 10, 10), record("all_prefix_ce", seed, 9, 9), record("symmetric_kl", seed, 8, 9),
                      record("selective_regression_thr0.8", seed, 5 if seed == 0 else 12, 10)]
         self.assertEqual(recommendation_from_records(rows)[0], "no_go")
 
     def test_two_matched_seeds_cannot_be_go(self):
         rows = []
         for seed in range(2):
-            rows += [record("final_ce", seed, 10, 10), record("symmetric_kl", seed, 8, 9),
+            rows += [record("final_ce", seed, 10, 10), record("all_prefix_ce", seed, 9, 9), record("symmetric_kl", seed, 8, 9),
                      record("selective_regression_thr0.8", seed, 6, 9.5, prefix=66)]
         self.assertNotEqual(recommendation_from_records(rows)[0], "go")
 
     def test_relaxed_aggregate_direction_is_weak_go(self):
         rows = []
         for seed in range(3):
-            rows += [record("final_ce", seed, 10, 10), record("symmetric_kl", seed, 8, 9),
+            rows += [record("final_ce", seed, 10, 10), record("all_prefix_ce", seed, 9, 9), record("symmetric_kl", seed, 8, 9),
                      record("selective_regression_thr0.8", seed, 7, 8.5, accuracy=69.4, prefix=64)]
         self.assertEqual(recommendation_from_records(rows)[0], "weak_go")
+
+    def test_all_prefix_dominance_blocks_go(self):
+        rows = []
+        for seed in range(3):
+            rows += [record("final_ce", seed, 10, 10),
+                     record("all_prefix_ce", seed, 5, 10, accuracy=71, prefix=67),
+                     record("symmetric_kl", seed, 7, 9),
+                     record("selective_regression_thr0.8", seed, 6, 9.5, accuracy=70, prefix=66)]
+        self.assertNotEqual(recommendation_from_records(rows)[0], "go")
 
 
 if __name__ == "__main__": unittest.main()

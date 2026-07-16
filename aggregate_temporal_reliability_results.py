@@ -39,26 +39,36 @@ def recommendation_from_records(records: list[dict[str, Any]]) -> tuple[str, lis
     by_method_seed = {(record["method"], int(record["seed"])): record for record in records}
     all_seeds = sorted({int(record["seed"]) for record in records})
     matched_seeds = [seed for seed in all_seeds if all((method, seed) in by_method_seed
-                     for method in ("final_ce", "symmetric_kl", "selective_regression_thr0.8"))]
+                     for method in ("final_ce", "all_prefix_ce", "symmetric_kl", "selective_regression_thr0.8"))]
     per_seed = []
     for seed in matched_seeds:
         baseline = by_method_seed.get(("final_ce", seed))
         selective = by_method_seed.get(("selective_regression_thr0.8", seed))
         symmetric = by_method_seed.get(("symmetric_kl", seed))
+        all_prefix = by_method_seed.get(("all_prefix_ce", seed))
         preservation = selective["beneficial_transition_fraction"] / max(1e-8, baseline["beneficial_transition_fraction"])
         regression_reduced = selective["ever_regressed_fraction"] < baseline["ever_regressed_fraction"]
         symmetric_ok = not symmetric or selective["destructive_transition_fraction"] <= symmetric["destructive_transition_fraction"]
         accuracy_ok = selective["final_accuracy"] - baseline["final_accuracy"] >= -0.5
         prefix_ok = selective["mean_prefix_accuracy"] >= baseline["mean_prefix_accuracy"]
-        per_seed.append(regression_reduced and symmetric_ok and preservation >= 0.9 and accuracy_ok and prefix_ok)
+        all_prefix_dominates = (all_prefix["destructive_transition_fraction"] <= selective["destructive_transition_fraction"]
+                                and all_prefix["beneficial_transition_fraction"] >= selective["beneficial_transition_fraction"]
+                                and all_prefix["final_accuracy"] >= selective["final_accuracy"]
+                                and all_prefix["mean_prefix_accuracy"] >= selective["mean_prefix_accuracy"])
+        per_seed.append(regression_reduced and symmetric_ok and preservation >= 0.9 and accuracy_ok and prefix_ok
+                        and not all_prefix_dominates)
     baseline_rows = [by_method_seed[("final_ce", seed)] for seed in matched_seeds]
     selective_rows = [by_method_seed[("selective_regression_thr0.8", seed)] for seed in matched_seeds]
     symmetric_rows = [by_method_seed[("symmetric_kl", seed)] for seed in matched_seeds]
+    all_prefix_rows = [by_method_seed[("all_prefix_ce", seed)] for seed in matched_seeds]
     strict_aggregate_direction = False
     weak_direction = False
-    if baseline_rows and selective_rows and symmetric_rows:
+    weak_seed_support = 0
+    aggregate_all_prefix_dominates = False
+    if baseline_rows and selective_rows and symmetric_rows and all_prefix_rows:
         baseline_mean = {metric: summarize([row[metric] for row in baseline_rows])["mean"] for metric in METRICS}
         selective_mean = {metric: summarize([row[metric] for row in selective_rows])["mean"] for metric in METRICS}
+        all_prefix_mean = {metric: summarize([row[metric] for row in all_prefix_rows])["mean"] for metric in METRICS}
         preservation = selective_mean["beneficial_transition_fraction"] / max(1e-8, baseline_mean["beneficial_transition_fraction"])
         symmetric_direction = (not symmetric_rows or selective_mean["destructive_transition_fraction"] <=
                                summarize([row["destructive_transition_fraction"] for row in symmetric_rows])["mean"])
@@ -68,16 +78,28 @@ def recommendation_from_records(records: list[dict[str, Any]]) -> tuple[str, lis
                                       and accuracy_change >= -0.5
                                       and selective_mean["mean_prefix_accuracy"] >= baseline_mean["mean_prefix_accuracy"])
         weak_direction = regression_reduction and preservation >= 0.8 and accuracy_change >= -1.0
+        weak_seed_support = sum(
+            row["ever_regressed_fraction"] < by_method_seed[("final_ce", seed)]["ever_regressed_fraction"]
+            for seed, row in zip(matched_seeds, selective_rows)
+        )
+        aggregate_all_prefix_dominates = (
+            all_prefix_mean["destructive_transition_fraction"] <= selective_mean["destructive_transition_fraction"]
+            and all_prefix_mean["beneficial_transition_fraction"] >= selective_mean["beneficial_transition_fraction"]
+            and all_prefix_mean["final_accuracy"] >= selective_mean["final_accuracy"]
+            and all_prefix_mean["mean_prefix_accuracy"] >= selective_mean["mean_prefix_accuracy"]
+        )
     successes = sum(per_seed)
-    if len(matched_seeds) >= 3 and successes >= 2 and strict_aggregate_direction:
+    if aggregate_all_prefix_dominates:
+        result = "no_go"
+    elif len(matched_seeds) >= 3 and successes >= 2 and strict_aggregate_direction:
         result = "go"
-    elif weak_direction:
+    elif weak_direction and weak_seed_support >= 2:
         result = "weak_go"
     else:
         result = "no_go"
     return result, [f"Strict primary criteria passed in {successes} of {len(per_seed)} matched seeds.",
-                    f"Matched seed count: {len(matched_seeds)} (go requires at least 3).",
-                    f"Strict aggregate direction: {strict_aggregate_direction}; weak aggregate direction: {weak_direction}.",
+                    f"Matched seed count: {len(matched_seeds)} (go requires final_ce, all_prefix_ce, symmetric_kl, and selective results for at least 3).",
+                    f"Strict aggregate direction: {strict_aggregate_direction}; weak aggregate direction: {weak_direction} with {weak_seed_support} supporting seeds; all-prefix dominance: {aggregate_all_prefix_dominates}.",
                     "No statistical significance is claimed."]
 
 
