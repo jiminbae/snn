@@ -78,6 +78,42 @@ def selective_regression_loss(
     return loss, diagnostics
 
 
+def combine_temporal_objective(
+    mode: str,
+    base_total: Tensor,
+    final_ce: Tensor,
+    prefix_logits: Tensor | None,
+    targets: Tensor,
+    *,
+    prefix_loss_weight: float,
+    temporal_loss_weight: float,
+    margin: float,
+    confidence_threshold: float,
+    temperature: float,
+    selection_mode: str,
+) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
+    """Add a temporal objective while preserving the exact final-CE base path."""
+    zero = final_ce * 0.0
+    diagnostics = {"selected_transition_fraction": zero.detach(), "violating_transition_fraction": zero.detach()}
+    if mode == "final_ce":
+        return base_total, zero, zero, diagnostics
+    if prefix_logits is None:
+        raise ValueError("Temporal training modes require prefix logits.")
+    prefix_ce = all_prefix_cross_entropy(prefix_logits, targets)
+    if mode == "all_prefix_ce":
+        return base_total - final_ce + prefix_ce, prefix_ce, zero, diagnostics
+    if mode == "symmetric_kl":
+        temporal_loss = symmetric_temporal_kl(prefix_logits, temperature)
+    elif mode == "selective_regression":
+        temporal_loss, full_diagnostics = selective_regression_loss(
+            prefix_logits, targets, confidence_threshold, margin, selection_mode
+        )
+        diagnostics = {key: full_diagnostics[key] for key in diagnostics}
+    else:
+        raise ValueError(f"Unknown temporal training mode: {mode}")
+    return base_total + prefix_loss_weight * prefix_ce + temporal_loss_weight * temporal_loss, prefix_ce, temporal_loss, diagnostics
+
+
 def temporal_reliability_metrics(prefix_logits: Tensor, targets: Tensor) -> dict[str, Tensor]:
     """Return percentage-point dataset metrics for regression and recovery."""
     _validate(prefix_logits, targets)

@@ -4,13 +4,22 @@ import torch
 import torch.nn.functional as F
 
 from utils.temporal_reliability_loss import (all_prefix_cross_entropy, selective_regression_loss,
-    symmetric_temporal_kl)
+    combine_temporal_objective, symmetric_temporal_kl)
 
 
 class TemporalReliabilityLossTests(unittest.TestCase):
     def test_final_ce_matches_existing_behavior(self):
         logits = torch.randn(3, 4, 2, requires_grad=True); targets = torch.tensor([0, 1, 0])
-        self.assertEqual(F.cross_entropy(logits[:, -1], targets), F.cross_entropy(logits[:, -1], targets))
+        existing_total = F.cross_entropy(logits[:, -1], targets)
+        total, prefix_ce, temporal_loss, diagnostics = combine_temporal_objective(
+            "final_ce", existing_total, existing_total, None, targets,
+            prefix_loss_weight=0.0, temporal_loss_weight=1.0, margin=0.0,
+            confidence_threshold=0.8, temperature=1.0, selection_mode="hard",
+        )
+        self.assertIs(total, existing_total)
+        self.assertEqual(prefix_ce.item(), 0.0)
+        self.assertEqual(temporal_loss.item(), 0.0)
+        self.assertEqual(diagnostics["selected_transition_fraction"].item(), 0.0)
 
     def test_all_prefix_ce_has_finite_gradients(self):
         logits = torch.randn(2, 3, 2, requires_grad=True)
