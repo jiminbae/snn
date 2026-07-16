@@ -28,5 +28,12 @@ class StoppingPolicyEvaluationTests(unittest.TestCase):
         metrics = binary_ranking_metrics(torch.zeros(4), torch.tensor([0.0, 1.0, 0.0, 1.0]))
         self.assertEqual(metrics["auroc"], 0.5)
 
+    def test_ranking_metrics_scale_without_pairwise_matrix(self):
+        scores = torch.arange(100_000, dtype=torch.float32) % 100
+        targets = torch.arange(100_000).remainder(2).float()
+        metrics = binary_ranking_metrics(scores, targets)
+        self.assertTrue(metrics["valid"])
+        self.assertTrue(0.0 <= metrics["auroc"] <= 1.0)
+
 
 if __name__ == "__main__": unittest.main()

@@ -32,23 +32,25 @@ def binary_ranking_metrics(scores: Tensor, targets: Tensor) -> dict[str, Any]:
     positives, negatives = targets.sum(), (1 - targets).sum()
     valid = bool(positives > 0 and negatives > 0)
     if valid:
-        positive_scores = scores[targets.bool()]
-        negative_scores = scores[~targets.bool()]
-        pairwise = positive_scores[:, None] - negative_scores[None, :]
-        auroc = (pairwise.gt(0).float() + 0.5 * pairwise.eq(0).float()).mean().item()
-        true_positives = scores.new_tensor(0.0)
-        predicted_positives = scores.new_tensor(0.0)
-        previous_recall = scores.new_tensor(0.0)
-        auprc_value = scores.new_tensor(0.0)
-        for threshold in scores.unique(sorted=True).flip(0):
-            tied = scores.eq(threshold)
-            true_positives += targets[tied].sum()
-            predicted_positives += tied.sum()
-            recall = true_positives / positives
-            precision = true_positives / predicted_positives
-            auprc_value += (recall - previous_recall) * precision
-            previous_recall = recall
-        auprc = auprc_value.item()
+        order = scores.argsort()
+        sorted_scores = scores[order]
+        sorted_targets = targets[order]
+        _, counts = torch.unique_consecutive(sorted_scores, return_counts=True)
+        group_ids = torch.repeat_interleave(torch.arange(len(counts), device=scores.device), counts)
+        group_positives = scores.new_zeros(len(counts)).scatter_add_(0, group_ids, sorted_targets)
+        group_negatives = counts.to(scores.dtype) - group_positives
+
+        negatives_before = torch.cat([scores.new_zeros(1), group_negatives.cumsum(0)[:-1]])
+        favorable_pairs = group_positives * negatives_before + 0.5 * group_positives * group_negatives
+        auroc = (favorable_pairs.sum() / (positives * negatives)).item()
+
+        descending_positives = group_positives.flip(0)
+        descending_counts = counts.flip(0).to(scores.dtype)
+        cumulative_positives = descending_positives.cumsum(0)
+        cumulative_predictions = descending_counts.cumsum(0)
+        precision = cumulative_positives / cumulative_predictions
+        recall_increment = descending_positives / positives
+        auprc = (precision * recall_increment).sum().item()
     else:
         auroc = auprc = math.nan
     return {"auroc": auroc, "auprc": auprc, "valid": valid, "positive_prevalence": prevalence}
