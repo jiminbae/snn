@@ -1,5 +1,6 @@
 import unittest
 
+from aggregate_stopping_predictor_results import aggregate_method_success
 from utils.kill_test_selection import (apply_selected_parameters, provisional_recommendation,
     select_validation_operating_points, tolerance_matched_comparisons)
 
@@ -38,6 +39,28 @@ class KillTestSelectionTests(unittest.TestCase):
         self.assertEqual(recommendation, "provisional_go")
         recommendation, _, _ = provisional_recommendation(rows[:1])
         self.assertEqual(recommendation, "provisional_weak_go")
+
+    def test_recommendation_does_not_mix_feature_modes(self):
+        rows = [
+            {"Accuracy Tolerance PP": 0.0, "Predictor": "multi_horizon", "Feature Mode": "current_logits",
+             "Timestep Gain vs Final-Horizon Same Feature": 1.0, "Timestep Gain vs Confidence": -1.0,
+             "Timestep Gain vs Confidence Stability": -1.0, "Timestep Gain vs Same-Predictor Current Logits": 0.0,
+             "Meets Validation Tolerance": True, "Meets Test Tolerance": True},
+            {"Accuracy Tolerance PP": 0.0, "Predictor": "multi_horizon", "Feature Mode": "logit_history",
+             "Timestep Gain vs Final-Horizon Same Feature": -1.0, "Timestep Gain vs Confidence": 1.0,
+             "Timestep Gain vs Confidence Stability": 1.0, "Timestep Gain vs Same-Predictor Current Logits": 1.0,
+             "Meets Validation Tolerance": True, "Meets Test Tolerance": True},
+        ]
+        recommendation, results, _ = provisional_recommendation(rows)
+        self.assertFalse(results["0.0"]["provisional_success"])
+        self.assertEqual(recommendation, "provisional_no_go")
+
+    def test_aggregate_requires_positive_mean_gain(self):
+        rows = [{"Timestep Gain vs Final-Horizon Same Feature": gain,
+                 "Timestep Gain vs Confidence": gain,
+                 "Timestep Gain vs Confidence Stability": gain,
+                 "Meets Test Tolerance": "True"} for gain in (0.1, 0.1, -2.0)]
+        self.assertFalse(aggregate_method_success(rows))
 
 
 if __name__ == "__main__": unittest.main()

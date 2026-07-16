@@ -39,6 +39,23 @@ def summarize(values: list[float]) -> dict[str, Any]:
     return {"mean": mean, "sample_standard_deviation": std, "individual_seed_values": values, "valid_seed_count": len(values)}
 
 
+def aggregate_method_success(rows: list[dict[str, Any]]) -> bool:
+    """Require per-seed directional agreement and positive aggregate gains for one method."""
+    valid_rows = [row for row in rows if row.get("Meets Test Tolerance", "True") == "True"]
+    if not valid_rows:
+        return False
+    seed_success = 0
+    for row in valid_rows:
+        final_gain = float(row["Timestep Gain vs Final-Horizon Same Feature"])
+        confidence_gain = float(row["Timestep Gain vs Confidence"])
+        stability_gain = float(row["Timestep Gain vs Confidence Stability"])
+        seed_success += int(final_gain > 0 and (confidence_gain > 0 or stability_gain > 0))
+    mean_final = sum(float(row["Timestep Gain vs Final-Horizon Same Feature"]) for row in valid_rows) / len(valid_rows)
+    mean_confidence = sum(float(row["Timestep Gain vs Confidence"]) for row in valid_rows) / len(valid_rows)
+    mean_stability = sum(float(row["Timestep Gain vs Confidence Stability"]) for row in valid_rows) / len(valid_rows)
+    return seed_success >= 2 and mean_final > 0 and (mean_confidence > 0 or mean_stability > 0)
+
+
 def legacy_main() -> None:
     args = parse_args(); output = Path(args.output_dir); output.mkdir(parents=True, exist_ok=True)
     summaries, selected_rows, metric_rows = [], [], []
@@ -144,17 +161,9 @@ def main() -> None:
     for tolerance in ("0.0", "0.5", "1.0", "2.0"):
         rows = [r for r in comparison_rows if r["Accuracy Tolerance PP"] == tolerance
                 and r["Predictor"] == "multi_horizon"]
-        seed_success = {}
-        for row in rows:
-            final_gain = row.get("Timestep Gain vs Final-Horizon Same Feature", "")
-            confidence_gain = row.get("Timestep Gain vs Confidence", "")
-            stability_gain = row.get("Timestep Gain vs Confidence Stability", "")
-            success = final_gain != "" and float(final_gain) > 0 and (
-                (confidence_gain != "" and float(confidence_gain) > 0) or
-                (stability_gain != "" and float(stability_gain) > 0)) and row.get("Meets Test Tolerance", "True") == "True"
-            seed_success.setdefault(row["Backbone Seed"], False)
-            seed_success[row["Backbone Seed"]] |= success
-        successful_tolerances += int(sum(seed_success.values()) >= 2)
+        method_groups = {method: [row for row in rows if row["Method"] == method]
+                         for method in {row["Method"] for row in rows}}
+        successful_tolerances += int(any(aggregate_method_success(group) for group in method_groups.values()))
     recommendation = "go" if len(summaries) >= 3 and successful_tolerances >= 2 else "weak_go" if successful_tolerances >= 1 else "no_go"
     def comparison_summary(method: str, metric: str) -> dict[str, Any]:
         return {str(tolerance): next((row for row in aggregate_comparisons

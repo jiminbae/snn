@@ -100,6 +100,15 @@ def provisional_recommendation(comparisons: list[dict[str, Any]]) -> tuple[str, 
     for tolerance in TOLERANCES:
         rows = [row for row in comparisons if float(row["Accuracy Tolerance PP"]) == tolerance
                 and str(row["Predictor"]) == "multi_horizon"]
+        success_rows = [row for row in rows
+                        if isinstance(row["Timestep Gain vs Final-Horizon Same Feature"], (int, float))
+                        and row["Timestep Gain vs Final-Horizon Same Feature"] > 0
+                        and ((isinstance(row["Timestep Gain vs Confidence"], (int, float))
+                              and row["Timestep Gain vs Confidence"] > 0)
+                             or (isinstance(row["Timestep Gain vs Confidence Stability"], (int, float))
+                                 and row["Timestep Gain vs Confidence Stability"] > 0))
+                        and bool(row["Meets Validation Tolerance"])
+                        and bool(row.get("Meets Test Tolerance", True))]
         beats_final = any(isinstance(row["Timestep Gain vs Final-Horizon Same Feature"], (int, float))
                           and row["Timestep Gain vs Final-Horizon Same Feature"] > 0 for row in rows)
         beats_baseline = any((isinstance(row["Timestep Gain vs Confidence"], (int, float)) and row["Timestep Gain vs Confidence"] > 0)
@@ -108,9 +117,7 @@ def provisional_recommendation(comparisons: list[dict[str, Any]]) -> tuple[str, 
         history = next((row for row in rows if row["Feature Mode"] == "logit_history"), None)
         history_beats = bool(history and isinstance(history["Timestep Gain vs Same-Predictor Current Logits"], (int, float))
                              and history["Timestep Gain vs Same-Predictor Current Logits"] > 0)
-        accuracy_valid = all(bool(row["Meets Validation Tolerance"]) and row.get("Meets Test Tolerance", True) is not False
-                             for row in rows)
-        success = beats_final and beats_baseline and accuracy_valid
+        success = bool(success_rows)
         successful += int(success)
         tolerance_results[str(tolerance)] = {"multi_horizon_beats_confidence_or_stability": beats_baseline,
                                              "multi_horizon_beats_final_horizon": beats_final,
