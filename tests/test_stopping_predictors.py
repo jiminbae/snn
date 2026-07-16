@@ -4,9 +4,19 @@ import torch
 
 from utils.stopping_predictors import (StoppingMLP, masked_bce_with_logits, multi_horizon_stops,
     one_step_stops, predictor_output_dim, recoverability_stops)
+from utils.kill_test_selection import planned_configurations
 
 
 class StoppingPredictorTests(unittest.TestCase):
+    def test_predictor_feature_mode_cross_product(self):
+        configurations = planned_configurations(["one_step", "multi_horizon"], ["current_logits", "logit_history"])
+        self.assertEqual([item[2] for item in configurations], [
+            "one_step__current_logits", "one_step__logit_history",
+            "multi_horizon__current_logits", "multi_horizon__logit_history"])
+        self.assertEqual(len(planned_configurations(["one_step"], ["current_logits"])), 1)
+        with self.assertRaises(ValueError):
+            planned_configurations(["one_step"], ["current_logits", "current_logits"])
+
     def test_forward_shapes(self):
         features = torch.randn(2, 4, 7)
         for name in ("recoverability_final", "final_horizon_gain", "one_step", "multi_horizon"):

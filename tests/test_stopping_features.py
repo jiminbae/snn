@@ -29,5 +29,17 @@ class StoppingFeatureTests(unittest.TestCase):
         test = torch.full((1, 3, 4), 3.0)
         self.assertTrue(torch.equal(normalize_features(test, stats), torch.full_like(test, 2.0)))
 
+    def test_feature_modes_have_distinct_dimensions_and_train_only_statistics(self):
+        train = torch.randn(2, 3, 2)
+        current = build_causal_features(train, "current_logits")
+        history = build_causal_features(train, "logit_history")
+        self.assertNotEqual(current.shape[-1], history.shape[-1])
+        current_stats = fit_feature_normalization(current)
+        history_stats = fit_feature_normalization(history)
+        changed_validation = build_causal_features(torch.full((2, 3, 2), 1000.0), "current_logits")
+        self.assertTrue(torch.equal(current_stats["feature_mean"], fit_feature_normalization(current)["feature_mean"]))
+        self.assertFalse(torch.equal(current_stats["feature_mean"], fit_feature_normalization(changed_validation)["feature_mean"]))
+        self.assertNotEqual(current_stats["feature_mean"].numel(), history_stats["feature_mean"].numel())
+
 
 if __name__ == "__main__": unittest.main()

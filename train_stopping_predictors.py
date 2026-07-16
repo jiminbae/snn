@@ -22,7 +22,10 @@ from utils.stopping_analysis import (confidence_stability_stopping, confidence_s
     cost_aware_oracle, earliest_correct_oracle, earliest_stable_correct_oracle,
     entropy_stopping, global_pareto_frontier, margin_stopping)
 from utils.stopping_features import build_causal_features, fit_feature_normalization, normalize_features
-from utils.stopping_policy_evaluation import binary_metrics, masked_probability_metrics, multiclass_metrics, policy_metrics
+from utils.kill_test_selection import (TOLERANCES, apply_selected_parameters, planned_configurations,
+    provisional_recommendation, select_validation_operating_points, tolerance_matched_comparisons)
+from utils.stopping_policy_evaluation import (binary_metrics, binary_ranking_metrics,
+    masked_probability_metrics, multiclass_metrics, policy_metrics)
 from utils.stopping_predictors import (StoppingMLP, masked_bce_with_logits, multi_horizon_stops,
     one_step_stops, predictor_output_dim, recoverability_stops)
 from utils.stopping_targets import action_margin_weights, build_stopping_targets, oracle_future_choice
@@ -30,7 +33,6 @@ from utils.trajectory_export import load_torch_compat
 
 PREDICTORS = ["recoverability_final", "final_horizon_gain", "one_step", "multi_horizon"]
 THRESHOLDS = [round(i * 0.05, 3) for i in range(1, 20)] + [0.975, 0.99]
-TOLERANCES = [0.0, 0.5, 1.0, 2.0]
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,6 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--selective-weighting", choices=["none", "oracle_margin"], default="none")
     parser.add_argument("--margin-temperature", type=float, default=0.25)
+    parser.add_argument("--weighting-lambda", type=float, default=None)
     return parser.parse_args()
 
 
@@ -80,7 +83,7 @@ def predictor_loss(name: str, output: torch.Tensor, targets: dict[str, Any], wei
                                   weights[:, :, None] if weights is not None else None)
 
 
-def train_predictor(name: str, train_x: torch.Tensor, val_x: torch.Tensor, train_targets: dict[str, Any],
+def train_predictor(name: str, feature_mode: str, train_x: torch.Tensor, val_x: torch.Tensor, train_targets: dict[str, Any],
                     val_targets: dict[str, Any], args: argparse.Namespace, output_dir: Path,
                     device: torch.device) -> tuple[StoppingMLP, list[dict[str, Any]]]:
     model = StoppingMLP(train_x.shape[-1], predictor_output_dim(name, train_x.shape[1]), args.hidden_dim, args.dropout).to(device)
@@ -90,7 +93,11 @@ def train_predictor(name: str, train_x: torch.Tensor, val_x: torch.Tensor, train
     val_targets = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in val_targets.items()}
     weights = None
     if args.selective_weighting == "oracle_margin":
-        weights = action_margin_weights(train_targets["error"], args.lambdas[0], args.margin_temperature)
+        if args.weighting_lambda is None:
+            raise ValueError("--selective-weighting oracle_margin requires --weighting-lambda.")
+        if name == "final_horizon_gain":
+            raise NotImplementedError("Oracle-margin weighting is not implemented for final_horizon_gain.")
+        weights = action_margin_weights(train_targets["error"], args.weighting_lambda, args.margin_temperature)
     best, stale, rows = math.inf, 0, []
     checkpoint = output_dir / "best_predictor.pt"
     for epoch in range(1, args.epochs + 1):
@@ -103,11 +110,13 @@ def train_predictor(name: str, train_x: torch.Tensor, val_x: torch.Tensor, train
             loss.backward(); optimizer.step(); total += loss.item() * len(selected); count += len(selected)
         model.eval()
         with torch.no_grad(): val_loss = predictor_loss(name, model(val_x), val_targets).item()
-        rows.append({"epoch": epoch, "train_loss": total / count, "val_loss": val_loss})
+        rows.append({"epoch": epoch, "train_loss": total / count, "val_loss": val_loss,
+                     "Predictor": name, "Feature Mode": feature_mode,
+                     "Method": f"{name}__{feature_mode}"})
         if math.isfinite(val_loss) and val_loss < best:
             best, stale = val_loss, 0
             torch.save({"epoch": epoch, "model_state_dict": model.state_dict(), "val_loss": best,
-                        "predictor": name, "config": vars(args)}, checkpoint)
+                        "predictor": name, "feature_mode": feature_mode, "config": vars(args)}, checkpoint)
         else:
             stale += 1
             if stale >= args.patience: break
@@ -134,16 +143,6 @@ def predictor_stops(name: str, output: torch.Tensor, value: float) -> torch.Tens
     return multi_horizon_stops(output.sigmoid(), value)
 
 
-def select_operating_points(rows: list[dict[str, Any]], final_accuracy: float, value_key: str) -> list[dict[str, Any]]:
-    selected = []
-    for tolerance in TOLERANCES:
-        eligible = [r for r in rows if r["Accuracy"] >= final_accuracy - tolerance]
-        if eligible:
-            best = min(eligible, key=lambda r: (r["Average Timestep"], -r["Accuracy"], -float(r[value_key])))
-            selected.append({**best, "Accuracy Tolerance PP": tolerance})
-    return selected
-
-
 def baseline_rows(payload: dict[str, Any], lambdas: list[float]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     predictions, targets = payload["predictions"], payload["targets"]
     n, tmax = predictions.shape; deployable, oracle = [], []
@@ -161,7 +160,7 @@ def baseline_rows(payload: dict[str, Any], lambdas: list[float]) -> tuple[list[d
     return deployable, oracle
 
 
-def main() -> None:
+def legacy_main() -> None:
     args = parse_args(); random.seed(args.policy_seed); np.random.seed(args.policy_seed); torch.manual_seed(args.policy_seed)
     device = torch.device(args.device if args.device != "cuda" or torch.cuda.is_available() else "cpu")
     trajectory_dir, output_dir = Path(args.trajectory_dir), Path(args.output_dir); output_dir.mkdir(parents=True, exist_ok=True)
@@ -178,7 +177,7 @@ def main() -> None:
     for name in args.predictors:
         mode = "current_logits" if name in {"recoverability_final", "final_horizon_gain"} else "logit_history"
         predictor_dir = output_dir / name; predictor_dir.mkdir(exist_ok=True)
-        model, _ = train_predictor(name, features[mode]["train"], features[mode]["val"], targets["train"], targets["val"], args, predictor_dir, device)
+        model, _ = train_predictor(name, mode, features[mode]["train"], features[mode]["val"], targets["train"], targets["val"], args, predictor_dir, device)
         with torch.no_grad(): outputs = {split: model(features[mode][split].to(device)).cpu() for split in ("val", "test")}
         if name == "recoverability_final":
             valid = targets["test"]["continue_mask"]
@@ -215,7 +214,9 @@ def main() -> None:
                         future = (probabilities[:, timestep, timestep + 1:] + time_cost[timestep + 1:]).min(dim=1).values
                         score[:, timestep] = current - future
                 valid = targets["test"]["continue_mask"]
-                metrics["oracle_action_by_lambda"][str(lambda_cost)] = binary_metrics(score[valid].sigmoid(), oracle_action[valid].float())
+                metrics["oracle_action_by_lambda"][str(lambda_cost)] = binary_ranking_metrics(
+                    score[valid], oracle_action[valid].float()
+                )
             values, value_key = args.lambdas, "Lambda"
         (predictor_dir / "predictor_metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
         curves = {}
@@ -300,6 +301,131 @@ def main() -> None:
     frontier = global_pareto_frontier(all_rows); plt.figure(figsize=(7, 5))
     for policy in sorted({r["Policy"] for r in frontier}):
         rows = [r for r in frontier if r["Policy"] == policy]; plt.plot([r["Average Timestep"] for r in rows], [r["Accuracy"] for r in rows], "o-", label=policy)
+    plt.xlabel("Average Timestep"); plt.ylabel("Accuracy (%)"); plt.grid(alpha=.3); plt.legend(fontsize=6); plt.tight_layout()
+    plt.savefig(output_dir / "accuracy_vs_average_timestep.png", dpi=160); plt.close()
+
+
+def main() -> None:
+    args = parse_args()
+    configurations = planned_configurations(args.predictors, args.feature_modes)
+    print("Planned predictor configurations:")
+    for _, _, method in configurations:
+        print(f"- {method}")
+    random.seed(args.policy_seed); np.random.seed(args.policy_seed); torch.manual_seed(args.policy_seed)
+    device = torch.device(args.device if args.device != "cuda" or torch.cuda.is_available() else "cpu")
+    trajectory_dir, output_dir = Path(args.trajectory_dir), Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    payloads = {split: load_torch_compat(trajectory_dir / f"{split}_trajectories.pt") for split in ("train", "val", "test")}
+    targets = {split: build_stopping_targets(payload["prefix_logits"], payload["targets"])
+               for split, payload in payloads.items()}
+    features, normalization = {}, {}
+    for mode in args.feature_modes:
+        raw = {split: build_causal_features(payload["prefix_logits"], mode) for split, payload in payloads.items()}
+        normalization[mode] = fit_feature_normalization(raw["train"])
+        features[mode] = {split: normalize_features(value, normalization[mode]) for split, value in raw.items()}
+    torch.save(normalization, output_dir / "feature_normalization.pt")
+    (output_dir / "config.json").write_text(json.dumps(vars(args), indent=2, sort_keys=True), encoding="utf-8")
+
+    diagnostic_predictors, primary_predictors = [], []
+    for name, mode, method in configurations:
+        method_dir = output_dir / method; method_dir.mkdir(exist_ok=True)
+        model, _ = train_predictor(name, mode, features[mode]["train"], features[mode]["val"],
+                                   targets["train"], targets["val"], args, method_dir, device)
+        with torch.no_grad():
+            outputs = {split: model(features[mode][split].to(device)).cpu() for split in ("val", "test")}
+        if name == "recoverability_final":
+            valid = targets["test"]["continue_mask"]
+            metrics = binary_metrics(outputs["test"].sigmoid().squeeze(-1)[valid],
+                                     targets["test"]["recoverable_final"][valid])
+            values, value_key = THRESHOLDS, "Threshold"
+        elif name == "final_horizon_gain":
+            valid = targets["test"]["continue_mask"]
+            metrics = multiclass_metrics(outputs["test"][valid], targets["test"]["final_horizon_outcome"][valid],
+                                         targets["test"]["outcome_class_names"])
+            values, value_key = args.lambdas, "Lambda"
+        else:
+            probabilities = outputs["test"].sigmoid()
+            if name == "one_step":
+                mask, metric_probabilities, metric_targets = (targets["test"]["next_target_mask"],
+                    probabilities[..., 1], targets["test"]["next_error"])
+            else:
+                mask, metric_probabilities, metric_targets = (targets["test"]["future_horizon_mask"],
+                    probabilities, targets["test"]["future_error_target"])
+            metrics = masked_probability_metrics(metric_probabilities, metric_targets, mask)
+            metrics["oracle_action_by_lambda"] = {}
+            error = targets["test"]["error"]
+            for lambda_cost in args.lambdas:
+                _, oracle_action = oracle_future_choice(error, lambda_cost)
+                if name == "one_step":
+                    score = probabilities[..., 0] - probabilities[..., 1]
+                else:
+                    tmax = probabilities.shape[1]; score = torch.zeros_like(error)
+                    time_cost = lambda_cost * torch.arange(1, tmax + 1) / tmax
+                    for timestep in range(tmax - 1):
+                        current = probabilities[:, timestep, timestep] + time_cost[timestep]
+                        future = (probabilities[:, timestep, timestep + 1:] + time_cost[timestep + 1:]).min(dim=1).values
+                        score[:, timestep] = current - future
+                valid = targets["test"]["continue_mask"]
+                metrics["oracle_action_by_lambda"][str(lambda_cost)] = binary_ranking_metrics(
+                    score[valid], oracle_action[valid].float())
+            values, value_key = args.lambdas, "Lambda"
+        metrics.update({"Predictor": name, "Feature Mode": mode, "Method": method})
+        (method_dir / "predictor_metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
+        curves = {}
+        for split in ("val", "test"):
+            curves[split] = [policy_metrics(
+                payloads[split]["predictions"], payloads[split]["targets"], predictor_stops(name, outputs[split], value),
+                method, **{value_key: value, "Predictor": name, "Feature Mode": mode, "Method": method,
+                           "Result Type": "post_hoc_diagnostic"}) for value in values]
+        write_csv(method_dir / "diagnostic_policy_curve.csv", curves["test"])
+        final_val = payloads["val"]["correct"][:, -1].float().mean().item() * 100.0
+        selected_val = select_validation_operating_points(curves["val"], final_val, value_key)
+        selected_test = apply_selected_parameters(selected_val, curves["test"], value_key)
+        write_csv(method_dir / "validation_selected_operating_points.csv", selected_val)
+        write_csv(method_dir / "test_selected_operating_points.csv", selected_test)
+        diagnostic_predictors += curves["test"]; primary_predictors += selected_test
+
+    validation_baseline, _ = baseline_rows(payloads["val"], args.lambdas)
+    test_baseline, oracle = baseline_rows(payloads["test"], args.lambdas)
+    final_val = payloads["val"]["correct"][:, -1].float().mean().item() * 100.0
+    primary_baselines = []
+    for policy in ("Confidence", "Confidence Stability"):
+        validation_rows = [{**row, "Method": policy, "Predictor": "baseline", "Feature Mode": "none"}
+                           for row in validation_baseline if row["Policy"] == policy]
+        test_rows = [{**row, "Method": policy, "Predictor": "baseline", "Feature Mode": "none",
+                      "Result Type": "post_hoc_diagnostic"} for row in test_baseline if row["Policy"] == policy]
+        selected_val = select_validation_operating_points(validation_rows, final_val, "Threshold")
+        primary_baselines += apply_selected_parameters(selected_val, test_rows, "Threshold")
+    write_csv(output_dir / "baseline_validation_selected_operating_points.csv", primary_baselines)
+    fixed = [row for row in test_baseline if row["Policy"].startswith("Fixed T")]
+    write_csv(output_dir / "fixed_timestep_results.csv", fixed)
+    write_csv(output_dir / "baseline_policy_results.csv", test_baseline)
+    write_csv(output_dir / "oracle_results.csv", oracle)
+    diagnostic = [{**row, "Result Type": "post_hoc_diagnostic"} for row in test_baseline] + diagnostic_predictors
+    primary = primary_baselines + primary_predictors
+    write_csv(output_dir / "diagnostic_test_policy_results.csv", diagnostic)
+    write_csv(output_dir / "diagnostic_test_pareto_frontier.csv", global_pareto_frontier(diagnostic))
+    write_csv(output_dir / "validation_selected_test_results.csv", primary)
+    write_csv(output_dir / "validation_selected_test_pareto_frontier.csv", global_pareto_frontier(primary))
+    write_csv(output_dir / "deployable_pareto_frontier.csv", global_pareto_frontier(primary))
+    write_csv(output_dir / "oracle_pareto_frontier.csv", global_pareto_frontier(oracle))
+    write_csv(output_dir / "all_policy_results.csv", diagnostic + oracle)
+    final_test_accuracy = payloads["test"]["correct"][:, -1].float().mean().item() * 100.0
+    comparisons = tolerance_matched_comparisons(primary, oracle, final_test_accuracy)
+    write_csv(output_dir / "tolerance_matched_comparisons.csv", comparisons)
+    recommendation, tolerance_results, reasons = provisional_recommendation(comparisons)
+    metadata = payloads["test"].get("metadata", {})
+    summary = {"dataset": metadata.get("dataset"), "backbone_seed": metadata.get("backbone_seed"),
+               "checkpoint_epoch": metadata.get("checkpoint_epoch"), "train_samples": len(payloads["train"]["targets"]),
+               "validation_samples": len(payloads["val"]["targets"]), "test_samples": len(payloads["test"]["targets"]),
+               "fixed_t8_test_accuracy": final_test_accuracy,
+               "methods": [method for _, _, method in configurations], "tolerance_results": tolerance_results,
+               "recommendation": recommendation, "recommendation_reasons": reasons}
+    (output_dir / "kill_test_summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+    frontier = global_pareto_frontier(primary); plt.figure(figsize=(7, 5))
+    for policy in sorted({row["Policy"] for row in frontier}):
+        rows = [row for row in frontier if row["Policy"] == policy]
+        plt.plot([row["Average Timestep"] for row in rows], [row["Accuracy"] for row in rows], "o-", label=policy)
     plt.xlabel("Average Timestep"); plt.ylabel("Accuracy (%)"); plt.grid(alpha=.3); plt.legend(fontsize=6); plt.tight_layout()
     plt.savefig(output_dir / "accuracy_vs_average_timestep.png", dpi=160); plt.close()
 
