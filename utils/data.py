@@ -7,7 +7,7 @@ from typing import Any
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
 
@@ -150,20 +150,15 @@ def _build_event_datasets(
     return train_set, test_set
 
 
-def build_dataloaders(
+def _build_datasets(
     dataset: str,
     data_dir: str,
-    batch_size: int,
     *,
     tmax: int,
-    num_workers: int | None = None,
     event_frame_mode: str = "binary",
     event_downsample_size: int | None = None,
-) -> tuple[DataLoader, DataLoader]:
+) -> tuple[Any, Any]:
     dataset = canonical_dataset_name(dataset)
-    if num_workers is None:
-        num_workers = min(8, max(2, (os.cpu_count() or 4) // 2))
-
     if dataset == "fashionmnist":
         train_tf = transforms.Compose(
             [
@@ -201,6 +196,31 @@ def build_dataloaders(
         )
     else:
         raise ValueError(f"Unsupported dataset: {dataset}")
+    return train_set, test_set
+
+
+def _loader_workers(num_workers: int | None) -> int:
+    return min(8, max(2, (os.cpu_count() or 4) // 2)) if num_workers is None else num_workers
+
+
+def build_dataloaders(
+    dataset: str,
+    data_dir: str,
+    batch_size: int,
+    *,
+    tmax: int,
+    num_workers: int | None = None,
+    event_frame_mode: str = "binary",
+    event_downsample_size: int | None = None,
+) -> tuple[DataLoader, DataLoader]:
+    num_workers = _loader_workers(num_workers)
+    train_set, test_set = _build_datasets(
+        dataset,
+        data_dir,
+        tmax=tmax,
+        event_frame_mode=event_frame_mode,
+        event_downsample_size=event_downsample_size,
+    )
 
     train_loader = DataLoader(
         train_set,
@@ -219,3 +239,62 @@ def build_dataloaders(
         persistent_workers=num_workers > 0,
     )
     return train_loader, test_loader
+
+
+def build_train_val_test_dataloaders(
+    dataset: str,
+    data_dir: str,
+    batch_size: int,
+    *,
+    tmax: int,
+    val_ratio: float,
+    split_seed: int,
+    num_workers: int | None = None,
+    event_frame_mode: str = "binary",
+    event_downsample_size: int | None = None,
+) -> tuple[DataLoader, DataLoader, DataLoader, dict[str, Any]]:
+    """Split only the official training set into deterministic train/validation subsets."""
+    dataset = canonical_dataset_name(dataset)
+    if not 0.0 < val_ratio < 1.0:
+        raise ValueError("val_ratio must be strictly between 0 and 1.")
+    if dataset == "cifar10":
+        raise ValueError("Validation splitting for CIFAR-10 is disabled because its training transform is random.")
+
+    num_workers = _loader_workers(num_workers)
+    full_train_set, test_set = _build_datasets(
+        dataset,
+        data_dir,
+        tmax=tmax,
+        event_frame_mode=event_frame_mode,
+        event_downsample_size=event_downsample_size,
+    )
+    num_samples = len(full_train_set)
+    num_val = int(num_samples * val_ratio)
+    num_train = num_samples - num_val
+    if num_train == 0 or num_val == 0:
+        raise ValueError(
+            f"val_ratio={val_ratio} creates an empty split for a training set of size {num_samples}."
+        )
+
+    split_generator = torch.Generator().manual_seed(split_seed)
+    permutation = torch.randperm(num_samples, generator=split_generator)
+    val_indices = permutation[:num_val].clone()
+    train_indices = permutation[num_val:].clone()
+    train_set = Subset(full_train_set, train_indices.tolist())
+    val_set = Subset(full_train_set, val_indices.tolist())
+    loader_kwargs = {
+        "batch_size": batch_size,
+        "num_workers": num_workers,
+        "pin_memory": True,
+        "persistent_workers": num_workers > 0,
+    }
+    train_loader = DataLoader(train_set, shuffle=True, **loader_kwargs)
+    val_loader = DataLoader(val_set, shuffle=False, drop_last=False, **loader_kwargs)
+    test_loader = DataLoader(test_set, shuffle=False, drop_last=False, **loader_kwargs)
+    split_indices = {
+        "train_indices": train_indices,
+        "val_indices": val_indices,
+        "split_seed": split_seed,
+        "val_ratio": val_ratio,
+    }
+    return train_loader, val_loader, test_loader, split_indices

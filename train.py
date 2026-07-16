@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import math
 import random
 import time
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -12,7 +14,7 @@ from torch import nn
 from tqdm import tqdm
 
 from models import build_model
-from utils.data import build_dataloaders
+from utils.data import build_dataloaders, build_train_val_test_dataloaders
 from utils.logging import append_metrics, prepare_run_dir, save_json
 from utils.metrics import AverageMeter, accuracy, energy_proxy
 from utils.plotting import plot_timestep_gates, plot_training_curves
@@ -69,6 +71,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=None)
     parser.add_argument("--limit-train-batches", type=int, default=None)
     parser.add_argument("--limit-test-batches", type=int, default=None)
+    parser.add_argument("--limit-val-batches", type=int, default=None)
+    parser.add_argument("--val-ratio", type=float, default=0.0)
+    parser.add_argument("--split-seed", type=int, default=42)
+    parser.add_argument("--checkpoint-selection", choices=["last", "best_val"], default="last")
+    parser.add_argument("--selection-metric", choices=["val_acc", "val_loss"], default="val_acc")
     parser.add_argument("--prefix-diagnostics", action="store_true")
     parser.add_argument("--save-prefix-trajectories", action="store_true")
     return parser.parse_args()
@@ -81,6 +88,38 @@ def set_seed(seed: int, device: torch.device) -> None:
     if device.type == "cuda":
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.benchmark = True
+
+
+def is_better_validation_checkpoint(
+    *,
+    candidate_acc: float,
+    candidate_loss: float,
+    best_acc: float | None,
+    best_loss: float | None,
+    selection_metric: str,
+) -> bool:
+    if not math.isfinite(candidate_acc) or not math.isfinite(candidate_loss):
+        return False
+    if best_acc is None or best_loss is None:
+        return True
+    if selection_metric == "val_acc":
+        return candidate_acc > best_acc or (candidate_acc == best_acc and candidate_loss < best_loss)
+    if selection_metric == "val_loss":
+        return candidate_loss < best_loss or (candidate_loss == best_loss and candidate_acc > best_acc)
+    raise ValueError(f"Unknown selection metric: {selection_metric}")
+
+
+def load_checkpoint_compat(path: str | Path, device: torch.device) -> dict[str, Any]:
+    try:
+        return torch.load(path, map_location=device, weights_only=True)
+    except TypeError:
+        return torch.load(path, map_location=device)
+
+
+def restore_model_checkpoint(model: nn.Module, path: str | Path, device: torch.device) -> dict[str, Any]:
+    checkpoint = load_checkpoint_compat(path, device)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    return checkpoint
 
 
 def output_to_float(output: dict[str, Any], key: str) -> float:
@@ -304,10 +343,19 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torch.device, args: argparse.Namespace) -> dict[str, float]:
+def evaluate_loader(
+    model: nn.Module,
+    loader: torch.utils.data.DataLoader,
+    device: torch.device,
+    args: argparse.Namespace,
+    *,
+    split_name: str,
+    max_batches: int | None = None,
+) -> dict[str, float]:
     model.eval()
     meter_names = [
-        "test_acc",
+        "loss",
+        "acc",
         "soft_acc",
         "hard_acc",
         "raw_spike_rate",
@@ -325,10 +373,10 @@ def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torc
         "loop_energy_proxy",
     ]
     meters = {name: AverageMeter() for name in meter_names}
-    progress = tqdm(loader, desc="test", leave=False)
+    progress = tqdm(loader, desc=split_name, leave=False)
 
     for batch_idx, (images, target) in enumerate(progress, start=1):
-        if args.limit_test_batches and batch_idx > args.limit_test_batches:
+        if max_batches and batch_idx > max_batches:
             break
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
@@ -364,7 +412,8 @@ def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torc
         assert isinstance(eval_logits, torch.Tensor)
         batch_size = images.shape[0]
 
-        meters["test_acc"].update(accuracy(eval_logits, target), batch_size)
+        meters["loss"].update(F.cross_entropy(eval_logits, target).item(), batch_size)
+        meters["acc"].update(accuracy(eval_logits, target), batch_size)
         meters["soft_acc"].update(accuracy(soft_logits, target), batch_size)
         meters["hard_acc"].update(hard_acc_value, batch_size)
         meters["raw_spike_rate"].update(output_to_float(soft_output, "raw_spike_rate"), batch_size)
@@ -384,9 +433,18 @@ def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torc
         meters["energy_proxy"].update(energy_proxy(output_to_float(soft_output, "gated_spike_rate"), output_to_float(soft_output, "effective_timestep")), batch_size)
         meters["prefix_energy_proxy"].update(energy_proxy(prefix_spike, prefix_timestep), batch_size)
         meters["loop_energy_proxy"].update(energy_proxy(prefix_spike, executed_timestep), batch_size)
-        progress.set_postfix(acc=f"{meters['test_acc'].avg:.2f}")
+        progress.set_postfix(acc=f"{meters['acc'].avg:.2f}")
 
     return {key: meter.avg for key, meter in meters.items()}
+
+
+@torch.no_grad()
+def evaluate(model: nn.Module, loader: torch.utils.data.DataLoader, device: torch.device, args: argparse.Namespace) -> dict[str, float]:
+    """Backward-compatible test evaluation API."""
+    metrics = evaluate_loader(
+        model, loader, device, args, split_name="test", max_batches=args.limit_test_batches
+    )
+    return {"test_acc": metrics.pop("acc"), **metrics}
 
 
 def tensor_tree_to_python(value: Any) -> Any:
@@ -447,6 +505,8 @@ def format_tree(value: Any) -> str:
 
 def main() -> None:
     args = parse_args()
+    if args.checkpoint_selection == "best_val" and not 0.0 < args.val_ratio < 1.0:
+        raise ValueError("--checkpoint-selection best_val requires --val-ratio strictly between 0 and 1.")
     requested = torch.device(args.device)
     if requested.type == "cuda" and not torch.cuda.is_available():
         print("CUDA requested but unavailable; falling back to CPU.")
@@ -464,24 +524,42 @@ def main() -> None:
     config["resolved_event_downsample_size"] = event_downsample_size
     save_json(run_dir / "config.json", config)
 
-    train_loader, test_loader = build_dataloaders(
-        args.dataset,
-        args.data_dir,
-        args.batch_size,
-        tmax=args.tmax,
-        num_workers=args.num_workers,
-        event_frame_mode=args.event_frame_mode,
-        event_downsample_size=event_downsample_size,
-    )
+    val_loader = None
+    if args.checkpoint_selection == "best_val":
+        train_loader, val_loader, test_loader, split_indices = build_train_val_test_dataloaders(
+            args.dataset,
+            args.data_dir,
+            args.batch_size,
+            tmax=args.tmax,
+            val_ratio=args.val_ratio,
+            split_seed=args.split_seed,
+            num_workers=args.num_workers,
+            event_frame_mode=args.event_frame_mode,
+            event_downsample_size=event_downsample_size,
+        )
+        torch.save(split_indices, run_dir / "split_indices.pt")
+    else:
+        train_loader, test_loader = build_dataloaders(
+            args.dataset,
+            args.data_dir,
+            args.batch_size,
+            tmax=args.tmax,
+            num_workers=args.num_workers,
+            event_frame_mode=args.event_frame_mode,
+            event_downsample_size=event_downsample_size,
+        )
     model = build_model(args.model, dataset=args.dataset, tmax=args.tmax, gate_init=args.gate_init).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp and device.type == "cuda")
 
     metrics_path = run_dir / "metrics.csv"
     last_eval: dict[str, float] = {}
+    best_epoch: int | None = None
+    best_val_acc: float | None = None
+    best_val_loss: float | None = None
+    checkpoint_path = run_dir / "best_checkpoint.pt"
     for epoch in range(1, args.epochs + 1):
         train_metrics = train_one_epoch(model, train_loader, optimizer, scaler, device, args, epoch)
-        last_eval = evaluate(model, test_loader, device, args)
         row = {
             "epoch": epoch,
             "train_loss": train_metrics["loss"],
@@ -496,15 +574,79 @@ def main() -> None:
             "train_hard_budget_proxy": train_metrics["hard_budget_proxy"],
             "train_acc_soft": train_metrics["acc"],
             "train_acc_hard": train_metrics["acc_hard"],
-            **last_eval,
         }
+        if args.checkpoint_selection == "best_val":
+            assert val_loader is not None
+            val_metrics = evaluate_loader(
+                model, val_loader, device, args, split_name="val", max_batches=args.limit_val_batches
+            )
+            row.update({f"val_{key}": value for key, value in val_metrics.items()})
+            if is_better_validation_checkpoint(
+                candidate_acc=val_metrics["acc"],
+                candidate_loss=val_metrics["loss"],
+                best_acc=best_val_acc,
+                best_loss=best_val_loss,
+                selection_metric=args.selection_metric,
+            ):
+                best_epoch = epoch
+                best_val_acc = val_metrics["acc"]
+                best_val_loss = val_metrics["loss"]
+                torch.save(
+                    {
+                        "epoch": epoch,
+                        "model_state_dict": model.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "selection_metric": args.selection_metric,
+                        "val_acc": best_val_acc,
+                        "val_loss": best_val_loss,
+                        "split_seed": args.split_seed,
+                        "val_ratio": args.val_ratio,
+                        "config": config,
+                    },
+                    checkpoint_path,
+                )
+            print(
+                f"epoch {epoch:03d} | loss {train_metrics['loss']:.4f} | "
+                f"val loss {val_metrics['loss']:.4f} | val {val_metrics['acc']:.2f}% | "
+                f"soft {val_metrics['soft_acc']:.2f}% | hard {val_metrics['hard_acc']:.2f}% | "
+                f"best epoch {best_epoch}"
+            )
+        else:
+            last_eval = evaluate(model, test_loader, device, args)
+            row.update(last_eval)
+            print(
+                f"epoch {epoch:03d} | loss {train_metrics['loss']:.4f} | "
+                f"test {last_eval['test_acc']:.2f}% | soft {last_eval['soft_acc']:.2f}% | hard {last_eval['hard_acc']:.2f}% | "
+                f"raw {last_eval['raw_spike_rate']:.4f} | gated {last_eval['gated_spike_rate']:.4f} | "
+                f"T {last_eval['effective_timestep']:.2f}/hard {last_eval['hard_effective_timestep']:.2f}/exec {last_eval['executed_timestep']:.2f} | "
+                f"energy proxy {last_eval['energy_proxy']:.4f} | loop proxy {last_eval['loop_energy_proxy']:.4f}"
+            )
         append_metrics(metrics_path, row)
-        print(
-            f"epoch {epoch:03d} | loss {train_metrics['loss']:.4f} | "
-            f"test {last_eval['test_acc']:.2f}% | soft {last_eval['soft_acc']:.2f}% | hard {last_eval['hard_acc']:.2f}% | "
-            f"raw {last_eval['raw_spike_rate']:.4f} | gated {last_eval['gated_spike_rate']:.4f} | "
-            f"T {last_eval['effective_timestep']:.2f}/hard {last_eval['hard_effective_timestep']:.2f}/exec {last_eval['executed_timestep']:.2f} | "
-            f"energy proxy {last_eval['energy_proxy']:.4f} | loop proxy {last_eval['loop_energy_proxy']:.4f}"
+
+    if args.checkpoint_selection == "best_val":
+        if best_epoch is None:
+            raise RuntimeError("No finite validation checkpoint was produced.")
+        restore_model_checkpoint(model, checkpoint_path, device)
+        print(f"Loaded validation-selected checkpoint from epoch {best_epoch}.")
+        last_eval = evaluate(model, test_loader, device, args)
+        print(f"Final test accuracy: {last_eval['test_acc']:.2f}%")
+        save_json(
+            run_dir / "selection_summary.json",
+            {
+                "checkpoint_selection": args.checkpoint_selection,
+                "selection_metric": args.selection_metric,
+                "best_epoch": best_epoch,
+                "best_validation_accuracy": best_val_acc,
+                "best_validation_loss": best_val_loss,
+                "total_epochs": args.epochs,
+                "test_accuracy_at_selected_checkpoint": last_eval["test_acc"],
+                "val_ratio": args.val_ratio,
+                "split_seed": args.split_seed,
+                "train_size": len(train_loader.dataset),
+                "validation_size": len(val_loader.dataset),
+                "test_size": len(test_loader.dataset),
+                "checkpoint_path": checkpoint_path.name,
+            },
         )
 
     model_state = snapshot_model_state(model, args)
@@ -518,12 +660,26 @@ def main() -> None:
             args,
             trajectory_path=trajectory_path,
         )
+        final_prefix_key = f"prefix_accuracy_t{args.tmax}"
+        if (
+            args.checkpoint_selection == "best_val"
+            and final_prefix_key in prefix_metrics
+            and abs(prefix_metrics[final_prefix_key] - last_eval["test_acc"]) > 1e-4
+        ):
+            raise RuntimeError("Final prefix accuracy does not match final test accuracy.")
         save_prefix_diagnostics(run_dir, prefix_metrics)
     summary = {
         "run_name": run_name,
         "model": args.model,
         "dataset": args.dataset,
         "tmax": args.tmax,
+        "checkpoint_selection": args.checkpoint_selection,
+        "selection_metric": args.selection_metric,
+        "best_epoch": best_epoch,
+        "best_validation_accuracy": best_val_acc,
+        "best_validation_loss": best_val_loss,
+        "val_ratio": args.val_ratio,
+        "split_seed": args.split_seed,
         "test_accuracy": last_eval.get("test_acc", 0.0),
         **last_eval,
         **model_state,
