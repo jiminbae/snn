@@ -745,6 +745,8 @@ def main() -> None:
                 "correct_to_wrong_transition_count", "destructive_transition_fraction",
                 "ever_recovered_fraction", "wrong_to_correct_transition_count",
                 "beneficial_transition_fraction", "stable_correct_fraction",
+                "mean_stable_correct_timestep", "never_stable_fraction",
+                "stable_by_t4_fraction", "stable_by_t6_fraction",
             )},
         }
         save_json(run_dir / "temporal_reliability_summary.json", temporal_summary)

@@ -112,6 +112,8 @@ def evaluate_prefix_diagnostics(
         "mean_stable_correct_timestep": float(stable[stable_valid].float().mean().item()) if stable_valid.any() else 0.0,
         "first_correct_valid_fraction": float(first_valid.float().mean().item() * 100.0),
         "stable_correct_valid_fraction": float(stable_valid.float().mean().item() * 100.0),
+        "stable_by_t4_fraction": float((stable <= 4).float().mean().item() * 100.0),
+        "stable_by_t6_fraction": float((stable <= 6).float().mean().item() * 100.0),
         "never_correct_fraction": float((~first_valid).float().mean().item() * 100.0),
         "never_stable_fraction": float((~stable_valid).float().mean().item() * 100.0),
         "num_samples": int(targets.shape[0]),
