@@ -23,6 +23,7 @@ from .prefix_metrics import (
     stable_correct_timestep,
     worst_prefix_accuracy,
 )
+from .temporal_reliability_loss import temporal_reliability_metrics
 
 
 @torch.no_grad()
@@ -116,6 +117,8 @@ def evaluate_prefix_diagnostics(
         "num_samples": int(targets.shape[0]),
     }
     result.update({f"prefix_accuracy_t{t}": float(value) for t, value in enumerate(curve.tolist(), start=1)})
+    reliability = temporal_reliability_metrics(prefix_logits, targets)
+    result.update({key: float(value.item()) for key, value in reliability.items()})
     return result
 
 

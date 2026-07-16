@@ -19,6 +19,8 @@ from utils.logging import append_metrics, prepare_run_dir, save_json
 from utils.metrics import AverageMeter, accuracy, energy_proxy
 from utils.plotting import plot_timestep_gates, plot_training_curves
 from utils.prefix_evaluation import evaluate_prefix_diagnostics, save_prefix_diagnostics
+from utils.temporal_reliability_loss import (all_prefix_cross_entropy, selective_regression_loss,
+    symmetric_temporal_kl, temporal_reliability_metrics)
 
 MODEL_CHOICES = [
     "fixed_lif",
@@ -43,6 +45,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--event-downsample-size", type=int, default=None)
     parser.add_argument("--temporal-prefix-steps", type=int, default=0)
     parser.add_argument("--temporal-prefix-mode", choices=["none", "zero", "truncate"], default="none")
+    parser.add_argument("--temporal-training-mode", choices=["final_ce", "all_prefix_ce", "symmetric_kl", "selective_regression"], default="final_ce")
+    parser.add_argument("--prefix-loss-weight", type=float, default=0.0)
+    parser.add_argument("--temporal-loss-weight", type=float, default=1.0)
+    parser.add_argument("--temporal-margin", type=float, default=0.0)
+    parser.add_argument("--temporal-confidence-threshold", type=float, default=0.8)
+    parser.add_argument("--temporal-temperature", type=float, default=1.0)
+    parser.add_argument("--temporal-selection-mode", choices=["hard", "soft"], default="hard")
     parser.add_argument("--gate-init", type=float, default=5.0)
     parser.add_argument("--lambda-spike", type=float, default=0.05)
     parser.add_argument("--eta-time", type=float, default=0.02)
@@ -240,6 +249,11 @@ def train_one_epoch(
         "acc_hard",
         "raw_spike_rate",
         "gated_spike_rate",
+        "final_ce",
+        "prefix_ce",
+        "temporal_loss",
+        "selected_transition_fraction",
+        "violating_transition_fraction",
     ]
     meters = {name: AverageMeter() for name in meter_names}
     amp_enabled = args.amp and device.type == "cuda"
@@ -262,6 +276,7 @@ def train_one_epoch(
                 min_prefix_steps=args.min_prefix_steps,
                 temporal_prefix_steps=args.temporal_prefix_steps,
                 temporal_prefix_mode=args.temporal_prefix_mode,
+                return_prefix_logits=args.temporal_training_mode != "final_ce",
             )
             if use_s2h:
                 # The hard-prefix pass uses non-differentiable binary prefix decisions.
@@ -313,6 +328,28 @@ def train_one_epoch(
                 ce_hard = images.new_tensor(0.0)
                 consistency = images.new_tensor(0.0)
 
+            prefix_ce = images.new_tensor(0.0)
+            temporal_loss = images.new_tensor(0.0)
+            temporal_diagnostics = {
+                "selected_transition_fraction": images.new_tensor(0.0),
+                "violating_transition_fraction": images.new_tensor(0.0),
+            }
+            if args.temporal_training_mode != "final_ce":
+                prefix_logits = soft_output["prefix_logits"]
+                assert isinstance(prefix_logits, torch.Tensor)
+                prefix_ce = all_prefix_cross_entropy(prefix_logits, target)
+                if args.temporal_training_mode == "all_prefix_ce":
+                    total = total - ce_soft + prefix_ce
+                elif args.temporal_training_mode == "symmetric_kl":
+                    temporal_loss = symmetric_temporal_kl(prefix_logits, args.temporal_temperature)
+                    total = total + args.prefix_loss_weight * prefix_ce + args.temporal_loss_weight * temporal_loss
+                elif args.temporal_training_mode == "selective_regression":
+                    temporal_loss, temporal_diagnostics = selective_regression_loss(
+                        prefix_logits, target, args.temporal_confidence_threshold, args.temporal_margin,
+                        args.temporal_selection_mode,
+                    )
+                    total = total + args.prefix_loss_weight * prefix_ce + args.temporal_loss_weight * temporal_loss
+
         scaler.scale(total).backward()
         scaler.step(optimizer)
         scaler.update()
@@ -337,6 +374,11 @@ def train_one_epoch(
             meters["acc_hard"].update(accuracy(hard_logits.detach(), target), batch_size)
         meters["raw_spike_rate"].update(output_to_float(soft_output, "raw_spike_rate"), batch_size)
         meters["gated_spike_rate"].update(output_to_float(soft_output, "gated_spike_rate"), batch_size)
+        meters["final_ce"].update(ce_soft.detach().item(), batch_size)
+        meters["prefix_ce"].update(prefix_ce.detach().item(), batch_size)
+        meters["temporal_loss"].update(temporal_loss.detach().item(), batch_size)
+        meters["selected_transition_fraction"].update(temporal_diagnostics["selected_transition_fraction"].item(), batch_size)
+        meters["violating_transition_fraction"].update(temporal_diagnostics["violating_transition_fraction"].item(), batch_size)
         progress.set_postfix(loss=f"{meters['loss'].avg:.4f}", acc=f"{meters['acc'].avg:.2f}")
 
     return {key: meter.avg for key, meter in meters.items()}
@@ -371,6 +413,14 @@ def evaluate_loader(
         "prefix_energy_proxy",
         "executed_timestep",
         "loop_energy_proxy",
+        "final_accuracy",
+        "mean_prefix_accuracy",
+        "ever_regressed_fraction",
+        "mean_population_regression",
+        "mean_conditional_regression",
+        "beneficial_transition_fraction",
+        "destructive_transition_fraction",
+        "stable_correct_fraction",
     ]
     meters = {name: AverageMeter() for name in meter_names}
     progress = tqdm(loader, desc=split_name, leave=False)
@@ -388,6 +438,7 @@ def evaluate_loader(
             min_prefix_steps=args.min_prefix_steps,
             temporal_prefix_steps=args.temporal_prefix_steps,
             temporal_prefix_mode=args.temporal_prefix_mode,
+            return_prefix_logits=True,
         )
         eval_output = soft_output
         hard_acc_value = 0.0
@@ -433,6 +484,12 @@ def evaluate_loader(
         meters["energy_proxy"].update(energy_proxy(output_to_float(soft_output, "gated_spike_rate"), output_to_float(soft_output, "effective_timestep")), batch_size)
         meters["prefix_energy_proxy"].update(energy_proxy(prefix_spike, prefix_timestep), batch_size)
         meters["loop_energy_proxy"].update(energy_proxy(prefix_spike, executed_timestep), batch_size)
+        reliability = temporal_reliability_metrics(soft_output["prefix_logits"], target)
+        for key in ("final_accuracy", "mean_prefix_accuracy", "ever_regressed_fraction",
+                    "mean_population_regression", "mean_conditional_regression",
+                    "beneficial_transition_fraction", "destructive_transition_fraction",
+                    "stable_correct_fraction"):
+            meters[key].update(float(reliability[key].item()), batch_size)
         progress.set_postfix(acc=f"{meters['acc'].avg:.2f}")
 
     return {key: meter.avg for key, meter in meters.items()}
@@ -574,6 +631,12 @@ def main() -> None:
             "train_hard_budget_proxy": train_metrics["hard_budget_proxy"],
             "train_acc_soft": train_metrics["acc"],
             "train_acc_hard": train_metrics["acc_hard"],
+            "train_final_ce": train_metrics.get("final_ce", train_metrics["ce_loss"]),
+            "train_prefix_ce": train_metrics.get("prefix_ce", 0.0),
+            "train_temporal_loss": train_metrics.get("temporal_loss", 0.0),
+            "train_total_loss": train_metrics["loss"],
+            "train_selected_transition_fraction": train_metrics.get("selected_transition_fraction", 0.0),
+            "train_violating_transition_fraction": train_metrics.get("violating_transition_fraction", 0.0),
         }
         if args.checkpoint_selection == "best_val":
             assert val_loader is not None
@@ -668,6 +731,24 @@ def main() -> None:
         ):
             raise RuntimeError("Final prefix accuracy does not match final test accuracy.")
         save_prefix_diagnostics(run_dir, prefix_metrics)
+        temporal_summary = {
+            "temporal_training_mode": args.temporal_training_mode,
+            "prefix_loss_weight": args.prefix_loss_weight,
+            "temporal_loss_weight": args.temporal_loss_weight,
+            "temporal_margin": args.temporal_margin,
+            "temporal_confidence_threshold": args.temporal_confidence_threshold,
+            "temporal_temperature": args.temporal_temperature,
+            "temporal_selection_mode": args.temporal_selection_mode,
+            "prefix_accuracy_curve": prefix_metrics["prefix_accuracy_curve"],
+            **{key: prefix_metrics[key] for key in (
+                "final_accuracy", "mean_prefix_accuracy", "minimum_prefix_accuracy",
+                "ever_regressed_fraction", "mean_population_regression", "mean_conditional_regression",
+                "correct_to_wrong_transition_count", "destructive_transition_fraction",
+                "ever_recovered_fraction", "wrong_to_correct_transition_count",
+                "beneficial_transition_fraction", "stable_correct_fraction",
+            )},
+        }
+        save_json(run_dir / "temporal_reliability_summary.json", temporal_summary)
     summary = {
         "run_name": run_name,
         "model": args.model,
