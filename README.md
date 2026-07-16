@@ -12,6 +12,8 @@ Phase A asks whether a causal learned stopping rule has enough headroom to justi
 
 At timestep `t`, `logit_history` features contain only logits through `t`; future slots are zero padded with a validity mask. The BEACON-style recoverability head predicts whether a current error becomes correct at the final horizon. The stronger final-horizon head predicts improve/same/harm, while one-step and multi-horizon heads estimate future error costs. Multi-horizon inference is receding-horizon: it advances one timestep and evaluates again rather than jumping directly to a predicted future stop.
 
+Every requested predictor is crossed with every requested feature mode. This separates target effects from history effects: for example, `multi_horizon__logit_history` must be interpreted alongside both `multi_horizon__current_logits` and `final_horizon_gain__logit_history`. Feature normalization remains mode-specific and is fitted on train trajectories only.
+
 ```bash
 python export_split_trajectories.py --run-dir results/EXPERIMENT/seed_0_shared_fixed_lif_T8 --device cuda
 python train_stopping_predictors.py \
@@ -25,7 +27,7 @@ python aggregate_stopping_predictor_results.py \
   --output-dir results/EXPERIMENT/logit_kill_test_aggregate
 ```
 
-Diagnostic curves apply a fixed grid to test only for post-hoc inspection. The primary test rows use thresholds selected on validation accuracy tolerances. Oracle policies expose headroom but are not deployable. Interpret `go`, `weak_go`, and `no_go` only as conservative diagnostics across backbone seeds; Phase A should pass before adding spike, membrane, or event-statistic features.
+`diagnostic_test_policy_results.csv` and `diagnostic_test_pareto_frontier.csv` apply fixed grids to test for post-hoc inspection only. Primary results are `validation_selected_test_results.csv` and `validation_selected_test_pareto_frontier.csv`; their thresholds and lambdas are selected on validation independently at each accuracy tolerance. Comparisons never mix tolerances. Oracle policies expose headroom but are not deployable, and oracle-action cost differences are ranking scores rather than calibrated probabilities. Treat a single-seed recommendation as provisional; final `go`, `weak_go`, or `no_go` interpretation belongs to the backbone-seed aggregate and makes no statistical-significance claim. Phase A should pass before adding spike, membrane, or event-statistic features.
 
 ## Validation checkpoint selection
 
