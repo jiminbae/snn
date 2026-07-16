@@ -26,10 +26,10 @@ def policy_metrics(predictions: Tensor, targets: Tensor, stop_timesteps: Tensor,
     return row
 
 
-def binary_metrics(probabilities: Tensor, targets: Tensor, bins: int = 10) -> dict[str, Any]:
-    probabilities, targets = probabilities.flatten().float(), targets.flatten().float()
+def binary_ranking_metrics(scores: Tensor, targets: Tensor) -> dict[str, Any]:
+    scores, targets = scores.flatten().float(), targets.flatten().float()
     prevalence = targets.mean().item()
-    order = probabilities.argsort(descending=True)
+    order = scores.argsort(descending=True)
     y = targets[order]
     positives, negatives = y.sum(), (1 - y).sum()
     valid = bool(positives > 0 and negatives > 0)
@@ -41,14 +41,19 @@ def binary_metrics(probabilities: Tensor, targets: Tensor, bins: int = 10) -> di
         auprc = (precision * y).sum().div(positives).item()
     else:
         auroc = auprc = math.nan
+    return {"auroc": auroc, "auprc": auprc, "valid": valid, "positive_prevalence": prevalence}
+
+
+def binary_metrics(probabilities: Tensor, targets: Tensor, bins: int = 10) -> dict[str, Any]:
+    probabilities, targets = probabilities.flatten().float(), targets.flatten().float()
+    result = binary_ranking_metrics(probabilities, targets)
     ece = 0.0
     for lower in torch.linspace(0, 1, bins + 1)[:-1]:
         upper = lower + 1 / bins
         selected = (probabilities >= lower) & (probabilities < upper if upper < 1 else probabilities <= upper)
         if selected.any():
             ece += selected.float().mean().item() * abs(probabilities[selected].mean().item() - targets[selected].mean().item())
-    return {"auroc": auroc, "auprc": auprc, "valid": valid, "brier_score": ((probabilities - targets) ** 2).mean().item(),
-            "ece": ece, "positive_prevalence": prevalence}
+    return {**result, "brier_score": ((probabilities - targets) ** 2).mean().item(), "ece": ece}
 
 
 def multiclass_metrics(logits: Tensor, targets: Tensor, class_names: dict[int, str]) -> dict[str, Any]:
