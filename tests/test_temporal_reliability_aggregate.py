@@ -36,5 +36,19 @@ class TemporalReliabilityAggregateTests(unittest.TestCase):
                      record("selective_regression_thr0.8", seed, 5 if seed == 0 else 12, 10)]
         self.assertEqual(recommendation_from_records(rows)[0], "no_go")
 
+    def test_two_matched_seeds_cannot_be_go(self):
+        rows = []
+        for seed in range(2):
+            rows += [record("final_ce", seed, 10, 10), record("symmetric_kl", seed, 8, 9),
+                     record("selective_regression_thr0.8", seed, 6, 9.5, prefix=66)]
+        self.assertNotEqual(recommendation_from_records(rows)[0], "go")
+
+    def test_relaxed_aggregate_direction_is_weak_go(self):
+        rows = []
+        for seed in range(3):
+            rows += [record("final_ce", seed, 10, 10), record("symmetric_kl", seed, 8, 9),
+                     record("selective_regression_thr0.8", seed, 7, 8.5, accuracy=69.4, prefix=64)]
+        self.assertEqual(recommendation_from_records(rows)[0], "weak_go")
+
 
 if __name__ == "__main__": unittest.main()

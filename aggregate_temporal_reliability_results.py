@@ -37,44 +37,47 @@ def method_name(summary: dict[str, Any]) -> str:
 
 def recommendation_from_records(records: list[dict[str, Any]]) -> tuple[str, list[str]]:
     by_method_seed = {(record["method"], int(record["seed"])): record for record in records}
-    seeds = sorted({int(record["seed"]) for record in records})
+    all_seeds = sorted({int(record["seed"]) for record in records})
+    matched_seeds = [seed for seed in all_seeds if all((method, seed) in by_method_seed
+                     for method in ("final_ce", "symmetric_kl", "selective_regression_thr0.8"))]
     per_seed = []
-    for seed in seeds:
+    for seed in matched_seeds:
         baseline = by_method_seed.get(("final_ce", seed))
         selective = by_method_seed.get(("selective_regression_thr0.8", seed))
         symmetric = by_method_seed.get(("symmetric_kl", seed))
-        if not baseline or not selective:
-            continue
         preservation = selective["beneficial_transition_fraction"] / max(1e-8, baseline["beneficial_transition_fraction"])
         regression_reduced = selective["ever_regressed_fraction"] < baseline["ever_regressed_fraction"]
         symmetric_ok = not symmetric or selective["destructive_transition_fraction"] <= symmetric["destructive_transition_fraction"]
         accuracy_ok = selective["final_accuracy"] - baseline["final_accuracy"] >= -0.5
         prefix_ok = selective["mean_prefix_accuracy"] >= baseline["mean_prefix_accuracy"]
         per_seed.append(regression_reduced and symmetric_ok and preservation >= 0.9 and accuracy_ok and prefix_ok)
-    baseline_rows = [record for record in records if record["method"] == "final_ce"]
-    selective_rows = [record for record in records if record["method"] == "selective_regression_thr0.8"]
-    symmetric_rows = [record for record in records if record["method"] == "symmetric_kl"]
-    aggregate_direction = False
-    if baseline_rows and selective_rows:
+    baseline_rows = [by_method_seed[("final_ce", seed)] for seed in matched_seeds]
+    selective_rows = [by_method_seed[("selective_regression_thr0.8", seed)] for seed in matched_seeds]
+    symmetric_rows = [by_method_seed[("symmetric_kl", seed)] for seed in matched_seeds]
+    strict_aggregate_direction = False
+    weak_direction = False
+    if baseline_rows and selective_rows and symmetric_rows:
         baseline_mean = {metric: summarize([row[metric] for row in baseline_rows])["mean"] for metric in METRICS}
         selective_mean = {metric: summarize([row[metric] for row in selective_rows])["mean"] for metric in METRICS}
         preservation = selective_mean["beneficial_transition_fraction"] / max(1e-8, baseline_mean["beneficial_transition_fraction"])
         symmetric_direction = (not symmetric_rows or selective_mean["destructive_transition_fraction"] <=
                                summarize([row["destructive_transition_fraction"] for row in symmetric_rows])["mean"])
-        aggregate_direction = (selective_mean["ever_regressed_fraction"] < baseline_mean["ever_regressed_fraction"]
-                               and symmetric_direction
-                               and preservation >= 0.9
-                               and selective_mean["final_accuracy"] - baseline_mean["final_accuracy"] >= -0.5
-                               and selective_mean["mean_prefix_accuracy"] >= baseline_mean["mean_prefix_accuracy"])
+        regression_reduction = selective_mean["ever_regressed_fraction"] < baseline_mean["ever_regressed_fraction"]
+        accuracy_change = selective_mean["final_accuracy"] - baseline_mean["final_accuracy"]
+        strict_aggregate_direction = (regression_reduction and symmetric_direction and preservation >= 0.9
+                                      and accuracy_change >= -0.5
+                                      and selective_mean["mean_prefix_accuracy"] >= baseline_mean["mean_prefix_accuracy"])
+        weak_direction = regression_reduction and preservation >= 0.8 and accuracy_change >= -1.0
     successes = sum(per_seed)
-    if successes >= 2 and aggregate_direction:
+    if len(matched_seeds) >= 3 and successes >= 2 and strict_aggregate_direction:
         result = "go"
-    elif successes >= 2:
+    elif weak_direction:
         result = "weak_go"
     else:
         result = "no_go"
-    return result, [f"Primary criteria passed in {successes} of {len(per_seed)} matched seeds.",
-                    f"Aggregate direction criterion: {aggregate_direction}.",
+    return result, [f"Strict primary criteria passed in {successes} of {len(per_seed)} matched seeds.",
+                    f"Matched seed count: {len(matched_seeds)} (go requires at least 3).",
+                    f"Strict aggregate direction: {strict_aggregate_direction}; weak aggregate direction: {weak_direction}.",
                     "No statistical significance is claimed."]
 
 
@@ -116,7 +119,19 @@ def main() -> None:
             "beneficial_correction_change_vs_final_ce": row["beneficial_transition_fraction"] - reference["beneficial_transition_fraction"],
             "beneficial_transition_preservation_ratio": row["beneficial_transition_fraction"] / max(1e-8, reference["beneficial_transition_fraction"]),
             "ever_recovered_preservation_ratio": row["ever_recovered_fraction"] / max(1e-8, reference["ever_recovered_fraction"])})
-    write_csv(output / "aggregate_method_comparisons.csv", comparisons)
+    write_csv(output / "seed_method_comparisons.csv", comparisons)
+    aggregate_comparisons = []
+    comparison_metrics = (
+        "regression_reduction_vs_final_ce", "final_accuracy_change_vs_final_ce",
+        "mean_prefix_accuracy_change_vs_final_ce", "beneficial_correction_change_vs_final_ce",
+        "beneficial_transition_preservation_ratio", "ever_recovered_preservation_ratio",
+    )
+    for method in sorted({row["method"] for row in comparisons}):
+        method_rows = [row for row in comparisons if row["method"] == method]
+        for metric in comparison_metrics:
+            aggregate_comparisons.append({"method": method, "metric": metric,
+                                          **summarize([float(row[metric]) for row in method_rows])})
+    write_csv(output / "aggregate_method_comparisons.csv", aggregate_comparisons)
     recommendation, reasons = recommendation_from_records(records)
     (output / "aggregate_summary.json").write_text(json.dumps(
         {"recommendation": recommendation, "recommendation_reasons": reasons,
