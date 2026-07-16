@@ -1,0 +1,50 @@
+{
+  "backbone_seed": 0,
+  "checkpoint_epoch": 28,
+  "dataset": "dvs_gesture",
+  "fixed_t8_test_accuracy": 71.96969985961914,
+  "methods": [
+    "recoverability_final__current_logits",
+    "recoverability_final__logit_history",
+    "final_horizon_gain__current_logits",
+    "final_horizon_gain__logit_history",
+    "one_step__current_logits",
+    "one_step__logit_history",
+    "multi_horizon__current_logits",
+    "multi_horizon__logit_history"
+  ],
+  "recommendation": "provisional_no_go",
+  "recommendation_reasons": [
+    "Multi-horizon met target and baseline criteria at 0 of 4 tolerances.",
+    "Final go/no-go requires the backbone-seed aggregate."
+  ],
+  "test_samples": 264,
+  "tolerance_results": {
+    "0.0": {
+      "logit_history_beats_current_logits": false,
+      "multi_horizon_beats_confidence_or_stability": false,
+      "multi_horizon_beats_final_horizon": false,
+      "provisional_success": false
+    },
+    "0.5": {
+      "logit_history_beats_current_logits": false,
+      "multi_horizon_beats_confidence_or_stability": false,
+      "multi_horizon_beats_final_horizon": false,
+      "provisional_success": false
+    },
+    "1.0": {
+      "logit_history_beats_current_logits": false,
+      "multi_horizon_beats_confidence_or_stability": false,
+      "multi_horizon_beats_final_horizon": false,
+      "provisional_success": false
+    },
+    "2.0": {
+      "logit_history_beats_current_logits": false,
+      "multi_horizon_beats_confidence_or_stability": false,
+      "multi_horizon_beats_final_horizon": false,
+      "provisional_success": false
+    }
+  },
+  "train_samples": 862,
+  "validation_samples": 215
+}

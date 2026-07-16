@@ -1,0 +1,16 @@
+{
+  "splits": {
+    "test": {
+      "final_accuracy": 71.21211886405945,
+      "samples": 264
+    },
+    "train": {
+      "final_accuracy": 92.80742406845093,
+      "samples": 862
+    },
+    "val": {
+      "final_accuracy": 80.93023300170898,
+      "samples": 215
+    }
+  }
+}

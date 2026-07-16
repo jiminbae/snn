@@ -1,0 +1,140 @@
+Accuracy Tolerance PP,Method,Metric,individual_seed_values,mean,sample_standard_deviation,valid_seed_count
+0.0,Confidence,Timestep Gain vs Confidence,[0.0],0.0,0.0,1
+0.0,Confidence,Timestep Gain vs Confidence Stability,[-1.9242424964904785],-1.9242424964904785,0.0,1
+0.5,Confidence,Timestep Gain vs Confidence,[0.0],0.0,0.0,1
+0.5,Confidence,Timestep Gain vs Confidence Stability,[-2.48106050491333],-2.48106050491333,0.0,1
+1.0,Confidence,Timestep Gain vs Confidence,"[0.0, 0.0, 0.0]",0.0,0.0,3
+1.0,Confidence,Timestep Gain vs Confidence Stability,"[-2.6666665077209473, -0.723484992980957, -1.6931819915771484]",-1.6944444974263508,0.9715913725674827,3
+2.0,Confidence,Timestep Gain vs Confidence,"[0.0, 0.0, 0.0]",0.0,0.0,3
+2.0,Confidence,Timestep Gain vs Confidence Stability,"[0.30681824684143066, -1.7121212482452393, -0.75]",-0.7184343338012695,1.0098398212920363,3
+0.0,Confidence Stability,Timestep Gain vs Confidence,[1.9242424964904785],1.9242424964904785,0.0,1
+0.0,Confidence Stability,Timestep Gain vs Confidence Stability,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.5,Confidence Stability,Timestep Gain vs Confidence,[2.48106050491333],2.48106050491333,0.0,1
+0.5,Confidence Stability,Timestep Gain vs Confidence Stability,"[0.0, 0.0, 0.0]",0.0,0.0,3
+1.0,Confidence Stability,Timestep Gain vs Confidence,"[2.6666665077209473, 0.723484992980957, 1.6931819915771484]",1.6944444974263508,0.9715913725674827,3
+1.0,Confidence Stability,Timestep Gain vs Confidence Stability,"[0.0, 0.0, 0.0]",0.0,0.0,3
+2.0,Confidence Stability,Timestep Gain vs Confidence,"[-0.30681824684143066, 1.7121212482452393, 0.75]",0.7184343338012695,1.0098398212920363,3
+2.0,Confidence Stability,Timestep Gain vs Confidence Stability,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.0,final_horizon_gain__current_logits,Timestep Gain vs Confidence,[-0.018939495086669922],-0.018939495086669922,0.0,1
+0.0,final_horizon_gain__current_logits,Timestep Gain vs Confidence Stability,"[-2.7537879943847656, -2.5037879943847656, -1.9431819915771484]",-2.40025266011556,0.4151026343310926,3
+0.0,final_horizon_gain__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.0,final_horizon_gain__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.5,final_horizon_gain__current_logits,Timestep Gain vs Confidence,[-0.018939495086669922],-0.018939495086669922,0.0,1
+0.5,final_horizon_gain__current_logits,Timestep Gain vs Confidence Stability,"[-2.7537879943847656, -2.5037879943847656, -2.5]",-2.5858586629231772,0.1454433996412928,3
+0.5,final_horizon_gain__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.5,final_horizon_gain__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+1.0,final_horizon_gain__current_logits,Timestep Gain vs Confidence,"[-0.723484992980957, -1.7803030014038086, -0.8068180084228516]",-1.1035353342692058,0.587577190099113,3
+1.0,final_horizon_gain__current_logits,Timestep Gain vs Confidence Stability,"[-3.3901515007019043, -2.5037879943847656, -2.5]",-2.7979798316955566,0.5128392061900955,3
+1.0,final_horizon_gain__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[0.0, 0.0, 0.0]",0.0,0.0,3
+1.0,final_horizon_gain__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+2.0,final_horizon_gain__current_logits,Timestep Gain vs Confidence,"[-3.696969747543335, -1.7803030014038086, -1.75]",-2.4090909163157144,1.1154386943784431,3
+2.0,final_horizon_gain__current_logits,Timestep Gain vs Confidence Stability,"[-3.3901515007019043, -3.492424249649048, -2.5]",-3.127525250116984,0.5458533534247901,3
+2.0,final_horizon_gain__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[0.0, 0.0, 0.0]",0.0,0.0,3
+2.0,final_horizon_gain__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.0,final_horizon_gain__logit_history,Timestep Gain vs Confidence,[-0.2689394950866699],-0.2689394950866699,0.0,1
+0.0,final_horizon_gain__logit_history,Timestep Gain vs Confidence Stability,"[-2.6098484992980957, -0.7689394950866699, -2.1931819915771484]",-1.8573233286539714,0.9653171870126854,3
+0.0,final_horizon_gain__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.0,final_horizon_gain__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[0.14393949508666992, 1.7348484992980957, -0.25]",0.5429293314615885,1.0508570589948658,3
+0.5,final_horizon_gain__logit_history,Timestep Gain vs Confidence,[-0.2689394950866699],-0.2689394950866699,0.0,1
+0.5,final_horizon_gain__logit_history,Timestep Gain vs Confidence Stability,"[-2.6098484992980957, -0.7689394950866699, -2.75]",-2.0429293314615884,1.1055307269258474,3
+0.5,final_horizon_gain__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.5,final_horizon_gain__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[0.14393949508666992, 1.7348484992980957, -0.25]",0.5429293314615885,1.0508570589948658,3
+1.0,final_horizon_gain__logit_history,Timestep Gain vs Confidence,"[-0.5795454978942871, -0.04545450210571289, -1.0568180084228516]",-0.5606060028076172,0.5059476888307008,3
+1.0,final_horizon_gain__logit_history,Timestep Gain vs Confidence Stability,"[-3.2462120056152344, -0.7689394950866699, -2.75]",-2.2550505002339682,1.3107063089586881,3
+1.0,final_horizon_gain__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[0.0, 0.0, 0.0]",0.0,0.0,3
+1.0,final_horizon_gain__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[0.14393949508666992, 1.7348484992980957, -0.25]",0.5429293314615885,1.0508570589948658,3
+2.0,final_horizon_gain__logit_history,Timestep Gain vs Confidence,"[-3.553030252456665, -0.04545450210571289, -2.0]",-1.866161584854126,1.7576138518284046,3
+2.0,final_horizon_gain__logit_history,Timestep Gain vs Confidence Stability,"[-3.2462120056152344, -1.7575757503509521, -2.75]",-2.5845959186553955,0.7579764888938876,3
+2.0,final_horizon_gain__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[0.0, 0.0, 0.0]",0.0,0.0,3
+2.0,final_horizon_gain__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[0.14393949508666992, 1.7348484992980957, -0.25]",0.5429293314615885,1.0508570589948658,3
+0.0,multi_horizon__current_logits,Timestep Gain vs Confidence,[-0.8295454978942871],-0.8295454978942871,0.0,1
+0.0,multi_horizon__current_logits,Timestep Gain vs Confidence Stability,"[-3.071969509124756, -3.2651515007019043, -2.7537879943847656]",-3.0303030014038086,0.25821547648714704,3
+0.0,multi_horizon__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[-0.31818151473999023, -0.7613635063171387, -0.8106060028076172]",-0.6300503412882487,0.27120624918057196,3
+0.0,multi_horizon__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.5,multi_horizon__current_logits,Timestep Gain vs Confidence,[-0.8295454978942871],-0.8295454978942871,0.0,1
+0.5,multi_horizon__current_logits,Timestep Gain vs Confidence Stability,"[-3.071969509124756, -3.2651515007019043, -3.310606002807617]",-3.215909004211426,0.12671014807336337,3
+0.5,multi_horizon__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[-0.31818151473999023, -0.7613635063171387, -0.8106060028076172]",-0.6300503412882487,0.27120624918057196,3
+0.5,multi_horizon__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+1.0,multi_horizon__current_logits,Timestep Gain vs Confidence,"[-1.0416665077209473, -2.5416665077209473, -1.6174240112304688]",-1.7335856755574544,0.7567166901783068,3
+1.0,multi_horizon__current_logits,Timestep Gain vs Confidence Stability,"[-3.7083330154418945, -3.2651515007019043, -3.310606002807617]",-3.428030172983805,0.24381097300569315,3
+1.0,multi_horizon__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[-0.31818151473999023, -0.7613635063171387, -0.8106060028076172]",-0.6300503412882487,0.27120624918057196,3
+1.0,multi_horizon__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+2.0,multi_horizon__current_logits,Timestep Gain vs Confidence,"[-4.015151262283325, -2.5416665077209473, -2.560606002807617]",-3.0391412576039634,0.8453025038672195,3
+2.0,multi_horizon__current_logits,Timestep Gain vs Confidence Stability,"[-3.7083330154418945, -4.2537877559661865, -3.310606002807617]",-3.757575591405233,0.4735151299995038,3
+2.0,multi_horizon__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[-0.31818151473999023, -0.7613635063171387, -0.8106060028076172]",-0.6300503412882487,0.27120624918057196,3
+2.0,multi_horizon__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.5,multi_horizon__logit_history,Timestep Gain vs Confidence,[0.26136350631713867],0.26136350631713867,0.0,1
+0.5,multi_horizon__logit_history,Timestep Gain vs Confidence Stability,[-2.2196969985961914],-2.2196969985961914,0.0,1
+0.5,multi_horizon__logit_history,Timestep Gain vs Final-Horizon Same Feature,[0.5303030014038086],0.5303030014038086,0.0,1
+0.5,multi_horizon__logit_history,Timestep Gain vs Same-Predictor Current Logits,[1.0909090042114258],1.0909090042114258,0.0,1
+1.0,multi_horizon__logit_history,Timestep Gain vs Confidence,[-0.526515007019043],-0.526515007019043,0.0,1
+1.0,multi_horizon__logit_history,Timestep Gain vs Confidence Stability,[-2.2196969985961914],-2.2196969985961914,0.0,1
+1.0,multi_horizon__logit_history,Timestep Gain vs Final-Horizon Same Feature,[0.5303030014038086],0.5303030014038086,0.0,1
+1.0,multi_horizon__logit_history,Timestep Gain vs Same-Predictor Current Logits,[1.0909090042114258],1.0909090042114258,0.0,1
+2.0,multi_horizon__logit_history,Timestep Gain vs Confidence,"[1.89393949508667, -1.4696969985961914]",0.21212124824523926,2.378450174129693,2
+2.0,multi_horizon__logit_history,Timestep Gain vs Confidence Stability,"[0.18181824684143066, -2.2196969985961914]",-1.0189393758773804,1.6981277151718186,2
+2.0,multi_horizon__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[1.9393939971923828, 0.5303030014038086]",1.2348484992980957,0.9963777984310057,2
+2.0,multi_horizon__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[4.435606002807617, 1.0909090042114258]",2.7632575035095215,2.3650579287216593,2
+0.0,one_step__current_logits,Timestep Gain vs Confidence,[-0.651515007019043],-0.651515007019043,0.0,1
+0.0,one_step__current_logits,Timestep Gain vs Confidence Stability,"[-3.0568180084228516, -3.4583334922790527, -2.5757575035095215]",-3.0303030014038086,0.4418850282438226,3
+0.0,one_step__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[-0.30303001403808594, -0.9545454978942871, -0.632575511932373]",-0.6300503412882487,0.3257650822159757,3
+0.0,one_step__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.5,one_step__current_logits,Timestep Gain vs Confidence,[-0.651515007019043],-0.651515007019043,0.0,1
+0.5,one_step__current_logits,Timestep Gain vs Confidence Stability,"[-3.0568180084228516, -3.4583334922790527, -3.132575511932373]",-3.215909004211426,0.21333547324727092,3
+0.5,one_step__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[-0.30303001403808594, -0.9545454978942871, -0.632575511932373]",-0.6300503412882487,0.3257650822159757,3
+0.5,one_step__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+1.0,one_step__current_logits,Timestep Gain vs Confidence,"[-1.026515007019043, -2.7348484992980957, -1.4393935203552246]",-1.7335856755574544,0.8913543618267012,3
+1.0,one_step__current_logits,Timestep Gain vs Confidence Stability,"[-3.6931815147399902, -3.4583334922790527, -3.132575511932373]",-3.428030172983805,0.2815288457089536,3
+1.0,one_step__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[-0.30303001403808594, -0.9545454978942871, -0.632575511932373]",-0.6300503412882487,0.3257650822159757,3
+1.0,one_step__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+2.0,one_step__current_logits,Timestep Gain vs Confidence,"[-3.999999761581421, -2.7348484992980957, -2.382575511932373]",-3.0391412576039634,0.8505650256777793,3
+2.0,one_step__current_logits,Timestep Gain vs Confidence Stability,"[-3.6931815147399902, -4.446969747543335, -3.132575511932373]",-3.757575591405233,0.6595589431461059,3
+2.0,one_step__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[-0.30303001403808594, -0.9545454978942871, -0.632575511932373]",-0.6300503412882487,0.3257650822159757,3
+2.0,one_step__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.0,one_step__logit_history,Timestep Gain vs Confidence,[2.159090995788574],2.159090995788574,0.0,1
+0.0,one_step__logit_history,Timestep Gain vs Confidence Stability,"[-0.1553030014038086, 0.2348484992980957]",0.039772748947143555,0.27587877183642456,2
+0.0,one_step__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[0.6136364936828613, 2.428030490875244]",1.5208334922790527,1.2829702991588996,2
+0.0,one_step__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[3.303030490875244, 2.810606002807617]",3.0568182468414307,0.3481966947349332,2
+0.5,one_step__logit_history,Timestep Gain vs Confidence,[2.159090995788574],2.159090995788574,0.0,1
+0.5,one_step__logit_history,Timestep Gain vs Confidence Stability,"[-0.1553030014038086, -0.32196950912475586]",-0.23863625526428223,0.11785101780616189,2
+0.5,one_step__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[0.6136364936828613, 2.428030490875244]",1.5208334922790527,1.2829702991588996,2
+0.5,one_step__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[3.303030490875244, 2.810606002807617]",3.0568182468414307,0.3481966947349332,2
+1.0,one_step__logit_history,Timestep Gain vs Confidence,"[0.5681819915771484, 1.3712124824523926]",0.9696972370147705,0.5678283055974471,2
+1.0,one_step__logit_history,Timestep Gain vs Confidence Stability,"[-0.1553030014038086, -0.32196950912475586]",-0.23863625526428223,0.11785101780616189,2
+1.0,one_step__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[0.6136364936828613, 2.428030490875244]",1.5208334922790527,1.2829702991588996,2
+1.0,one_step__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[3.303030490875244, 2.810606002807617]",3.0568182468414307,0.3481966947349332,2
+2.0,one_step__logit_history,Timestep Gain vs Confidence,"[0.5681819915771484, 0.42803049087524414]",0.4981062412261963,0.0991020765397877,2
+2.0,one_step__logit_history,Timestep Gain vs Confidence Stability,"[-1.1439392566680908, -0.32196950912475586]",-0.7329543828964233,0.5812203824180867,2
+2.0,one_step__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[0.6136364936828613, 2.428030490875244]",1.5208334922790527,1.2829702991588996,2
+2.0,one_step__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[3.303030490875244, 2.810606002807617]",3.0568182468414307,0.3481966947349332,2
+0.0,recoverability_final__current_logits,Timestep Gain vs Confidence,[3.0227272510528564],3.0227272510528564,0.0,1
+0.0,recoverability_final__current_logits,Timestep Gain vs Confidence Stability,"[1.2196967601776123, 1.098484754562378]",1.1590907573699951,0.08570983113175411,2
+0.0,recoverability_final__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[3.723484754562378, 3.0416667461395264]",3.382575750350952,0.4821181372909049,2
+0.0,recoverability_final__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0]",0.0,0.0,2
+0.5,recoverability_final__current_logits,Timestep Gain vs Confidence,[3.518939256668091],3.518939256668091,0.0,1
+0.5,recoverability_final__current_logits,Timestep Gain vs Confidence Stability,"[1.6856060028076172, 1.5871210098266602, 1.0378787517547607]",1.4368685881296794,0.3490264898377744,3
+0.5,recoverability_final__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[4.439393997192383, 4.090909004211426, 3.5378787517547607]",4.0227272510528564,0.45460862072440517,3
+0.5,recoverability_final__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+1.0,recoverability_final__current_logits,Timestep Gain vs Confidence,"[3.715909004211426, 2.310606002807617, 2.731060743331909]",2.919191916783651,0.7212933766900158,3
+1.0,recoverability_final__current_logits,Timestep Gain vs Confidence Stability,"[1.0492424964904785, 1.5871210098266602, 1.0378787517547607]",1.2247474193572998,0.31387616662602214,3
+1.0,recoverability_final__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[4.439393997192383, 4.090909004211426, 3.5378787517547607]",4.0227272510528564,0.45460862072440517,3
+1.0,recoverability_final__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+2.0,recoverability_final__current_logits,Timestep Gain vs Confidence,"[0.7424242496490479, 2.4886362552642822, 2.1212122440338135]",1.7840909163157146,0.9206259741830584,3
+2.0,recoverability_final__current_logits,Timestep Gain vs Confidence Stability,"[1.0492424964904785, 0.776515007019043, 1.3712122440338135]",1.065656582514445,0.2976882053311017,3
+2.0,recoverability_final__current_logits,Timestep Gain vs Final-Horizon Same Feature,"[4.439393997192383, 4.268939256668091, 3.8712122440338135]",4.193181832631429,0.29156820236111014,3
+2.0,recoverability_final__current_logits,Timestep Gain vs Same-Predictor Current Logits,"[0.0, 0.0, 0.0]",0.0,0.0,3
+0.0,recoverability_final__logit_history,Timestep Gain vs Confidence Stability,[0.6818180084228516],0.6818180084228516,0.0,1
+0.0,recoverability_final__logit_history,Timestep Gain vs Final-Horizon Same Feature,[1.4507575035095215],1.4507575035095215,0.0,1
+0.0,recoverability_final__logit_history,Timestep Gain vs Same-Predictor Current Logits,[-0.5378787517547607],-0.5378787517547607,0.0,1
+0.5,recoverability_final__logit_history,Timestep Gain vs Confidence,[4.117424249649048],4.117424249649048,0.0,1
+0.5,recoverability_final__logit_history,Timestep Gain vs Confidence Stability,"[1.35606050491333, 1.6363637447357178]",1.496212124824524,0.19820432166696944,2
+0.5,recoverability_final__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[2.125, 4.386363744735718]",3.255681872367859,1.599025638632031,2
+0.5,recoverability_final__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[-0.23106050491333008, 0.598484992980957]",0.18371224403381348,0.5865772468638213,2
+1.0,recoverability_final__logit_history,Timestep Gain vs Confidence,"[2.079545497894287, 3.329545736312866]",2.7045456171035767,0.8838836450705785,2
+1.0,recoverability_final__logit_history,Timestep Gain vs Confidence Stability,"[1.35606050491333, 1.6363637447357178]",1.496212124824524,0.19820432166696944,2
+1.0,recoverability_final__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[2.125, 4.386363744735718]",3.255681872367859,1.599025638632031,2
+1.0,recoverability_final__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[-0.23106050491333008, 0.598484992980957]",0.18371224403381348,0.5865772468638213,2
+2.0,recoverability_final__logit_history,Timestep Gain vs Confidence,"[0.40151524543762207, 2.079545497894287, 2.3863637447357178]",1.6224748293558757,1.0684526607763625,3
+2.0,recoverability_final__logit_history,Timestep Gain vs Confidence Stability,"[0.7083334922790527, 0.36742424964904785, 1.6363637447357178]",0.9040404955546061,0.6567174307843718,3
+2.0,recoverability_final__logit_history,Timestep Gain vs Final-Horizon Same Feature,"[3.954545497894287, 2.125, 4.386363744735718]",3.4886364142100015,1.2005186180130383,3
+2.0,recoverability_final__logit_history,Timestep Gain vs Same-Predictor Current Logits,"[-0.3409090042114258, -0.4090907573699951, 0.2651515007019043]",-0.16161608695983887,0.3711605020404404,3

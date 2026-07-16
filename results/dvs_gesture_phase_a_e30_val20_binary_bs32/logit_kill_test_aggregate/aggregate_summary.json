@@ -1,0 +1,213 @@
+{
+  "core_comparisons": {
+    "multi_horizon_logit_history_vs_current_logits": {
+      "0.0": {},
+      "0.5": {
+        "Accuracy Tolerance PP": "0.5",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Same-Predictor Current Logits",
+        "individual_seed_values": [
+          1.0909090042114258
+        ],
+        "mean": 1.0909090042114258,
+        "sample_standard_deviation": 0.0,
+        "valid_seed_count": 1
+      },
+      "1.0": {
+        "Accuracy Tolerance PP": "1.0",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Same-Predictor Current Logits",
+        "individual_seed_values": [
+          1.0909090042114258
+        ],
+        "mean": 1.0909090042114258,
+        "sample_standard_deviation": 0.0,
+        "valid_seed_count": 1
+      },
+      "2.0": {
+        "Accuracy Tolerance PP": "2.0",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Same-Predictor Current Logits",
+        "individual_seed_values": [
+          4.435606002807617,
+          1.0909090042114258
+        ],
+        "mean": 2.7632575035095215,
+        "sample_standard_deviation": 2.3650579287216593,
+        "valid_seed_count": 2
+      }
+    },
+    "multi_horizon_vs_confidence": {
+      "0.0": {},
+      "0.5": {
+        "Accuracy Tolerance PP": "0.5",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Confidence",
+        "individual_seed_values": [
+          0.26136350631713867
+        ],
+        "mean": 0.26136350631713867,
+        "sample_standard_deviation": 0.0,
+        "valid_seed_count": 1
+      },
+      "1.0": {
+        "Accuracy Tolerance PP": "1.0",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Confidence",
+        "individual_seed_values": [
+          -0.526515007019043
+        ],
+        "mean": -0.526515007019043,
+        "sample_standard_deviation": 0.0,
+        "valid_seed_count": 1
+      },
+      "2.0": {
+        "Accuracy Tolerance PP": "2.0",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Confidence",
+        "individual_seed_values": [
+          1.89393949508667,
+          -1.4696969985961914
+        ],
+        "mean": 0.21212124824523926,
+        "sample_standard_deviation": 2.378450174129693,
+        "valid_seed_count": 2
+      }
+    },
+    "multi_horizon_vs_confidence_stability": {
+      "0.0": {},
+      "0.5": {
+        "Accuracy Tolerance PP": "0.5",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Confidence Stability",
+        "individual_seed_values": [
+          -2.2196969985961914
+        ],
+        "mean": -2.2196969985961914,
+        "sample_standard_deviation": 0.0,
+        "valid_seed_count": 1
+      },
+      "1.0": {
+        "Accuracy Tolerance PP": "1.0",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Confidence Stability",
+        "individual_seed_values": [
+          -2.2196969985961914
+        ],
+        "mean": -2.2196969985961914,
+        "sample_standard_deviation": 0.0,
+        "valid_seed_count": 1
+      },
+      "2.0": {
+        "Accuracy Tolerance PP": "2.0",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Confidence Stability",
+        "individual_seed_values": [
+          0.18181824684143066,
+          -2.2196969985961914
+        ],
+        "mean": -1.0189393758773804,
+        "sample_standard_deviation": 1.6981277151718186,
+        "valid_seed_count": 2
+      }
+    },
+    "multi_horizon_vs_final_horizon__current_logits": {
+      "0.0": {
+        "Accuracy Tolerance PP": "0.0",
+        "Method": "multi_horizon__current_logits",
+        "Metric": "Timestep Gain vs Final-Horizon Same Feature",
+        "individual_seed_values": [
+          -0.31818151473999023,
+          -0.7613635063171387,
+          -0.8106060028076172
+        ],
+        "mean": -0.6300503412882487,
+        "sample_standard_deviation": 0.27120624918057196,
+        "valid_seed_count": 3
+      },
+      "0.5": {
+        "Accuracy Tolerance PP": "0.5",
+        "Method": "multi_horizon__current_logits",
+        "Metric": "Timestep Gain vs Final-Horizon Same Feature",
+        "individual_seed_values": [
+          -0.31818151473999023,
+          -0.7613635063171387,
+          -0.8106060028076172
+        ],
+        "mean": -0.6300503412882487,
+        "sample_standard_deviation": 0.27120624918057196,
+        "valid_seed_count": 3
+      },
+      "1.0": {
+        "Accuracy Tolerance PP": "1.0",
+        "Method": "multi_horizon__current_logits",
+        "Metric": "Timestep Gain vs Final-Horizon Same Feature",
+        "individual_seed_values": [
+          -0.31818151473999023,
+          -0.7613635063171387,
+          -0.8106060028076172
+        ],
+        "mean": -0.6300503412882487,
+        "sample_standard_deviation": 0.27120624918057196,
+        "valid_seed_count": 3
+      },
+      "2.0": {
+        "Accuracy Tolerance PP": "2.0",
+        "Method": "multi_horizon__current_logits",
+        "Metric": "Timestep Gain vs Final-Horizon Same Feature",
+        "individual_seed_values": [
+          -0.31818151473999023,
+          -0.7613635063171387,
+          -0.8106060028076172
+        ],
+        "mean": -0.6300503412882487,
+        "sample_standard_deviation": 0.27120624918057196,
+        "valid_seed_count": 3
+      }
+    },
+    "multi_horizon_vs_final_horizon__logit_history": {
+      "0.0": {},
+      "0.5": {
+        "Accuracy Tolerance PP": "0.5",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Final-Horizon Same Feature",
+        "individual_seed_values": [
+          0.5303030014038086
+        ],
+        "mean": 0.5303030014038086,
+        "sample_standard_deviation": 0.0,
+        "valid_seed_count": 1
+      },
+      "1.0": {
+        "Accuracy Tolerance PP": "1.0",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Final-Horizon Same Feature",
+        "individual_seed_values": [
+          0.5303030014038086
+        ],
+        "mean": 0.5303030014038086,
+        "sample_standard_deviation": 0.0,
+        "valid_seed_count": 1
+      },
+      "2.0": {
+        "Accuracy Tolerance PP": "2.0",
+        "Method": "multi_horizon__logit_history",
+        "Metric": "Timestep Gain vs Final-Horizon Same Feature",
+        "individual_seed_values": [
+          1.9393939971923828,
+          0.5303030014038086
+        ],
+        "mean": 1.2348484992980957,
+        "sample_standard_deviation": 0.9963777984310057,
+        "valid_seed_count": 2
+      }
+    }
+  },
+  "recommendation": "no_go",
+  "recommendation_reasons": [
+    "Criteria reproduced in at least two seeds at 0 tolerances.",
+    "No statistical significance is claimed."
+  ],
+  "seed_count": 3,
+  "successful_tolerance_count": 0
+}

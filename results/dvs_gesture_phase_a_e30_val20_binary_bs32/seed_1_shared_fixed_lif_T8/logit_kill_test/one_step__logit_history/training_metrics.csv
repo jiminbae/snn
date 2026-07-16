@@ -1,0 +1,21 @@
+Feature Mode,Method,Predictor,epoch,train_loss,val_loss
+logit_history,one_step__logit_history,one_step,1,0.6409487935893774,0.63054358959198
+logit_history,one_step__logit_history,one_step,2,0.5971952992083025,0.6059449315071106
+logit_history,one_step__logit_history,one_step,3,0.5617775020909144,0.5866978168487549
+logit_history,one_step__logit_history,one_step,4,0.5322756631744987,0.5713720917701721
+logit_history,one_step__logit_history,one_step,5,0.50733605448995,0.5589161515235901
+logit_history,one_step__logit_history,one_step,6,0.4846755150714219,0.5487776398658752
+logit_history,one_step__logit_history,one_step,7,0.46472737407463055,0.5407013297080994
+logit_history,one_step__logit_history,one_step,8,0.4480151785775293,0.5346457362174988
+logit_history,one_step__logit_history,one_step,9,0.4302059627049484,0.5307199358940125
+logit_history,one_step__logit_history,one_step,10,0.41610328213521336,0.5288408994674683
+logit_history,one_step__logit_history,one_step,11,0.4042091182240754,0.5288997888565063
+logit_history,one_step__logit_history,one_step,12,0.3937824102952696,0.5306022763252258
+logit_history,one_step__logit_history,one_step,13,0.385992991675357,0.5333919525146484
+logit_history,one_step__logit_history,one_step,14,0.3774643525170063,0.5368833541870117
+logit_history,one_step__logit_history,one_step,15,0.3718245315026241,0.5404853224754333
+logit_history,one_step__logit_history,one_step,16,0.36585932956217615,0.543899416923523
+logit_history,one_step__logit_history,one_step,17,0.3629205825019049,0.5464831590652466
+logit_history,one_step__logit_history,one_step,18,0.3586247205872547,0.5475727319717407
+logit_history,one_step__logit_history,one_step,19,0.35386499804023247,0.5472567677497864
+logit_history,one_step__logit_history,one_step,20,0.3500732280953578,0.5457483530044556

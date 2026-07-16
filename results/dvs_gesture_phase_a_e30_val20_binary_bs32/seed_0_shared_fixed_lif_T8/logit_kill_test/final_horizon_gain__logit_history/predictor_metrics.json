@@ -1,0 +1,17 @@
+{
+  "Feature Mode": "logit_history",
+  "Method": "final_horizon_gain__logit_history",
+  "Predictor": "final_horizon_gain",
+  "cross_entropy": 0.42650535702705383,
+  "harm_precision": 0.0,
+  "harm_recall": 0.0,
+  "harm_vs_rest_auroc": 0.6938577890396118,
+  "harm_vs_rest_auroc_valid": true,
+  "improve_precision": 0.38235294117647056,
+  "improve_recall": 0.35714285714285715,
+  "improve_vs_rest_auroc": 0.8282225131988525,
+  "improve_vs_rest_auroc_valid": true,
+  "macro_f1": 0.4304072605247102,
+  "same_precision": 0.900476758045292,
+  "same_recall": 0.944375
+}

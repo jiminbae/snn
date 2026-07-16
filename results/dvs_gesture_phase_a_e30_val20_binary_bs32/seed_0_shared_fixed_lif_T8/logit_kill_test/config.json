@@ -1,0 +1,37 @@
+{
+  "batch_size": 512,
+  "device": "cuda",
+  "dropout": 0.1,
+  "epochs": 100,
+  "feature_modes": [
+    "current_logits",
+    "logit_history"
+  ],
+  "hidden_dim": 64,
+  "lambdas": [
+    0.0,
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    3.0,
+    4.0,
+    6.0,
+    8.0
+  ],
+  "lr": 0.001,
+  "margin_temperature": 0.25,
+  "output_dir": "results/dvs_gesture_phase_a_e30_val20_binary_bs32/seed_0_shared_fixed_lif_T8/logit_kill_test",
+  "patience": 10,
+  "policy_seed": 0,
+  "predictors": [
+    "recoverability_final",
+    "final_horizon_gain",
+    "one_step",
+    "multi_horizon"
+  ],
+  "selective_weighting": "none",
+  "trajectory_dir": "results/dvs_gesture_phase_a_e30_val20_binary_bs32/seed_0_shared_fixed_lif_T8/trajectories",
+  "weight_decay": 0.0001,
+  "weighting_lambda": null
+}

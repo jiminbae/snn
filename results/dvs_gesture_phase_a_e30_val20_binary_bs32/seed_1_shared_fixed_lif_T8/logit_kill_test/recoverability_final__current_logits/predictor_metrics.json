@@ -1,0 +1,11 @@
+{
+  "Feature Mode": "current_logits",
+  "Method": "recoverability_final__current_logits",
+  "Predictor": "recoverability_final",
+  "auprc": 0.44685059785842896,
+  "auroc": 0.8924322128295898,
+  "brier_score": 0.07448378205299377,
+  "ece": 0.03523049600577266,
+  "positive_prevalence": 0.10281385481357574,
+  "valid": true
+}

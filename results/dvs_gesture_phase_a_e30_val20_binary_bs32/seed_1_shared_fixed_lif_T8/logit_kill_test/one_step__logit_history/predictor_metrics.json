@@ -1,0 +1,69 @@
+{
+  "Feature Mode": "logit_history",
+  "Method": "one_step__logit_history",
+  "Predictor": "one_step",
+  "auprc": 0.3718684911727905,
+  "auroc": 0.6026718616485596,
+  "brier_score": 0.21777862310409546,
+  "ece": 0.09082782292653846,
+  "error_probability_mae": 0.38701170682907104,
+  "masked_bce": 0.6294439435005188,
+  "oracle_action_by_lambda": {
+    "0.0": {
+      "auprc": 0.34602755308151245,
+      "auroc": 0.7817420959472656,
+      "positive_prevalence": 0.10930735617876053,
+      "valid": true
+    },
+    "0.5": {
+      "auprc": 0.34602755308151245,
+      "auroc": 0.7817420959472656,
+      "positive_prevalence": 0.10930735617876053,
+      "valid": true
+    },
+    "1.0": {
+      "auprc": 0.34602755308151245,
+      "auroc": 0.7817420959472656,
+      "positive_prevalence": 0.10930735617876053,
+      "valid": true
+    },
+    "1.5": {
+      "auprc": 0.33348777890205383,
+      "auroc": 0.7772062420845032,
+      "positive_prevalence": 0.10660172998905182,
+      "valid": true
+    },
+    "2.0": {
+      "auprc": 0.2809795141220093,
+      "auroc": 0.7669225931167603,
+      "positive_prevalence": 0.09361471980810165,
+      "valid": true
+    },
+    "3.0": {
+      "auprc": 0.2237112820148468,
+      "auroc": 0.7554649710655212,
+      "positive_prevalence": 0.07900433242321014,
+      "valid": true
+    },
+    "4.0": {
+      "auprc": 0.1626686304807663,
+      "auroc": 0.745384931564331,
+      "positive_prevalence": 0.05032467469573021,
+      "valid": true
+    },
+    "6.0": {
+      "auprc": 0.1626686304807663,
+      "auroc": 0.745384931564331,
+      "positive_prevalence": 0.05032467469573021,
+      "valid": true
+    },
+    "8.0": {
+      "auprc": NaN,
+      "auroc": NaN,
+      "positive_prevalence": 0.0,
+      "valid": false
+    }
+  },
+  "positive_prevalence": 0.3100649416446686,
+  "valid": true
+}
