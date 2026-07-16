@@ -6,6 +6,41 @@ This project studies a counterintuitive behavior in event-based spiking neural n
 
 The repository provides prefix-wise evaluation for one shared SNN, independently trained prefix specialists, and the completed ChronoSkip implementation as a baseline and historical experiment. This phase does not implement selective monotonic loss, adaptive early exit, temporal attention, or a new architecture.
 
+## Logit-only Phase A kill test
+
+Phase A asks whether a causal learned stopping rule has enough headroom to justify richer spike or membrane features. A best-validation frozen backbone first exports separate train, validation, and test trajectories with `export_split_trajectories.py`. Predictor optimization and feature normalization use train trajectories, early stopping and operating-point selection use validation trajectories, and test trajectories are used only for the final report.
+
+At timestep `t`, `logit_history` features contain only logits through `t`; future slots are zero padded with a validity mask. The BEACON-style recoverability head predicts whether a current error becomes correct at the final horizon. The stronger final-horizon head predicts improve/same/harm, while one-step and multi-horizon heads estimate future error costs. Multi-horizon inference is receding-horizon: it advances one timestep and evaluates again rather than jumping directly to a predicted future stop.
+
+```bash
+python export_split_trajectories.py --run-dir results/EXPERIMENT/seed_0_shared_fixed_lif_T8 --device cuda
+python train_stopping_predictors.py \
+  --trajectory-dir results/EXPERIMENT/seed_0_shared_fixed_lif_T8/trajectories \
+  --output-dir results/EXPERIMENT/seed_0_shared_fixed_lif_T8/logit_kill_test \
+  --predictors recoverability_final final_horizon_gain one_step multi_horizon --device cuda
+python aggregate_stopping_predictor_results.py \
+  --run-dirs results/EXPERIMENT/seed_0_shared_fixed_lif_T8 \
+             results/EXPERIMENT/seed_1_shared_fixed_lif_T8 \
+             results/EXPERIMENT/seed_2_shared_fixed_lif_T8 \
+  --output-dir results/EXPERIMENT/logit_kill_test_aggregate
+```
+
+Diagnostic curves apply a fixed grid to test only for post-hoc inspection. The primary test rows use thresholds selected on validation accuracy tolerances. Oracle policies expose headroom but are not deployable. Interpret `go`, `weak_go`, and `no_go` only as conservative diagnostics across backbone seeds; Phase A should pass before adding spike, membrane, or event-statistic features.
+
+## Validation checkpoint selection
+
+Training keeps its legacy behavior by default: `--checkpoint-selection last` evaluates the official test set after every epoch and reports the final model. For test-independent model selection, use a deterministic split of the original training set:
+
+```bash
+python train.py --model fixed_lif --dataset dvs_gesture --epochs 30 --tmax 8 \
+  --event-frame-mode binary --event-downsample-size 64 \
+  --val-ratio 0.2 --split-seed 42 \
+  --checkpoint-selection best_val --selection-metric val_acc \
+  --prefix-diagnostics --save-prefix-trajectories
+```
+
+In `best_val` mode, each epoch evaluates validation data only. The selected checkpoint is restored before the official test set is evaluated once, and prefix trajectories are generated from that same model. `--split-seed` controls only the saved data partition, while `--seed` controls training randomness; keeping the split seed fixed lets training seeds 0, 1, and 2 use exactly the same examples for a fair comparison. The run stores `split_indices.pt`, `best_checkpoint.pt`, and `selection_summary.json`; `metrics.csv` contains training and validation metrics without per-epoch test metrics. `val_acc` breaks accuracy ties with lower loss, while `val_loss` breaks loss ties with higher accuracy. CIFAR-10 validation splitting is currently rejected because its training dataset uses random augmentation; event datasets and Fashion-MNIST are supported.
+
 ## Motivation
 
 A shared model can follow a trajectory such as:
