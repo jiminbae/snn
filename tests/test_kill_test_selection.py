@@ -62,5 +62,12 @@ class KillTestSelectionTests(unittest.TestCase):
                  "Meets Test Tolerance": "True"} for gain in (0.1, 0.1, -2.0)]
         self.assertFalse(aggregate_method_success(rows))
 
+    def test_aggregate_handles_missing_subset_comparisons(self):
+        rows = [{"Timestep Gain vs Final-Horizon Same Feature": "",
+                 "Timestep Gain vs Confidence": "0.5",
+                 "Timestep Gain vs Confidence Stability": "",
+                 "Meets Test Tolerance": "True"}]
+        self.assertFalse(aggregate_method_success(rows))
+
 
 if __name__ == "__main__": unittest.main()

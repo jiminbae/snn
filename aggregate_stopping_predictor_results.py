@@ -41,19 +41,36 @@ def summarize(values: list[float]) -> dict[str, Any]:
 
 def aggregate_method_success(rows: list[dict[str, Any]]) -> bool:
     """Require per-seed directional agreement and positive aggregate gains for one method."""
-    valid_rows = [row for row in rows if row.get("Meets Test Tolerance", "True") == "True"]
-    if not valid_rows:
+    def optional_float(row: dict[str, Any], key: str) -> float | None:
+        value = row.get(key, "")
+        if value in ("", None):
+            return None
+        try:
+            result = float(value)
+        except (TypeError, ValueError):
+            return None
+        return result if math.isfinite(result) else None
+
+    gains = []
+    for row in rows:
+        if row.get("Meets Test Tolerance", "True") != "True":
+            continue
+        final_gain = optional_float(row, "Timestep Gain vs Final-Horizon Same Feature")
+        confidence_gain = optional_float(row, "Timestep Gain vs Confidence")
+        stability_gain = optional_float(row, "Timestep Gain vs Confidence Stability")
+        if final_gain is not None and (confidence_gain is not None or stability_gain is not None):
+            gains.append((final_gain, confidence_gain, stability_gain))
+    if not gains:
         return False
-    seed_success = 0
-    for row in valid_rows:
-        final_gain = float(row["Timestep Gain vs Final-Horizon Same Feature"])
-        confidence_gain = float(row["Timestep Gain vs Confidence"])
-        stability_gain = float(row["Timestep Gain vs Confidence Stability"])
-        seed_success += int(final_gain > 0 and (confidence_gain > 0 or stability_gain > 0))
-    mean_final = sum(float(row["Timestep Gain vs Final-Horizon Same Feature"]) for row in valid_rows) / len(valid_rows)
-    mean_confidence = sum(float(row["Timestep Gain vs Confidence"]) for row in valid_rows) / len(valid_rows)
-    mean_stability = sum(float(row["Timestep Gain vs Confidence Stability"]) for row in valid_rows) / len(valid_rows)
-    return seed_success >= 2 and mean_final > 0 and (mean_confidence > 0 or mean_stability > 0)
+    seed_success = sum(final > 0 and ((confidence is not None and confidence > 0)
+                                     or (stability is not None and stability > 0))
+                       for final, confidence, stability in gains)
+    mean_final = sum(final for final, _, _ in gains) / len(gains)
+    confidence_values = [confidence for _, confidence, _ in gains if confidence is not None]
+    stability_values = [stability for _, _, stability in gains if stability is not None]
+    mean_confidence_positive = bool(confidence_values) and sum(confidence_values) / len(confidence_values) > 0
+    mean_stability_positive = bool(stability_values) and sum(stability_values) / len(stability_values) > 0
+    return seed_success >= 2 and mean_final > 0 and (mean_confidence_positive or mean_stability_positive)
 
 
 def legacy_main() -> None:
