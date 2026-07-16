@@ -20,7 +20,7 @@ from utils.metrics import AverageMeter, accuracy, energy_proxy
 from utils.plotting import plot_timestep_gates, plot_training_curves
 from utils.prefix_evaluation import evaluate_prefix_diagnostics, save_prefix_diagnostics
 from utils.temporal_reliability_loss import (all_prefix_cross_entropy, selective_regression_loss,
-    symmetric_temporal_kl, temporal_reliability_metrics)
+    combine_temporal_objective, temporal_reliability_metrics)
 
 MODEL_CHOICES = [
     "fixed_lif",
@@ -328,27 +328,14 @@ def train_one_epoch(
                 ce_hard = images.new_tensor(0.0)
                 consistency = images.new_tensor(0.0)
 
-            prefix_ce = images.new_tensor(0.0)
-            temporal_loss = images.new_tensor(0.0)
-            temporal_diagnostics = {
-                "selected_transition_fraction": images.new_tensor(0.0),
-                "violating_transition_fraction": images.new_tensor(0.0),
-            }
-            if args.temporal_training_mode != "final_ce":
-                prefix_logits = soft_output["prefix_logits"]
-                assert isinstance(prefix_logits, torch.Tensor)
-                prefix_ce = all_prefix_cross_entropy(prefix_logits, target)
-                if args.temporal_training_mode == "all_prefix_ce":
-                    total = total - ce_soft + prefix_ce
-                elif args.temporal_training_mode == "symmetric_kl":
-                    temporal_loss = symmetric_temporal_kl(prefix_logits, args.temporal_temperature)
-                    total = total + args.prefix_loss_weight * prefix_ce + args.temporal_loss_weight * temporal_loss
-                elif args.temporal_training_mode == "selective_regression":
-                    temporal_loss, temporal_diagnostics = selective_regression_loss(
-                        prefix_logits, target, args.temporal_confidence_threshold, args.temporal_margin,
-                        args.temporal_selection_mode,
-                    )
-                    total = total + args.prefix_loss_weight * prefix_ce + args.temporal_loss_weight * temporal_loss
+            prefix_logits = soft_output.get("prefix_logits")
+            assert prefix_logits is None or isinstance(prefix_logits, torch.Tensor)
+            total, prefix_ce, temporal_loss, temporal_diagnostics = combine_temporal_objective(
+                args.temporal_training_mode, total, ce_soft, prefix_logits, target,
+                prefix_loss_weight=args.prefix_loss_weight, temporal_loss_weight=args.temporal_loss_weight,
+                margin=args.temporal_margin, confidence_threshold=args.temporal_confidence_threshold,
+                temperature=args.temporal_temperature, selection_mode=args.temporal_selection_mode,
+            )
 
         scaler.scale(total).backward()
         scaler.step(optimizer)
@@ -423,6 +410,8 @@ def evaluate_loader(
         "stable_correct_fraction",
     ]
     meters = {name: AverageMeter() for name in meter_names}
+    all_prefix_logits: list[torch.Tensor] = []
+    all_targets: list[torch.Tensor] = []
     progress = tqdm(loader, desc=split_name, leave=False)
 
     for batch_idx, (images, target) in enumerate(progress, start=1):
@@ -490,9 +479,19 @@ def evaluate_loader(
                     "beneficial_transition_fraction", "destructive_transition_fraction",
                     "stable_correct_fraction"):
             meters[key].update(float(reliability[key].item()), batch_size)
+        all_prefix_logits.append(soft_output["prefix_logits"].detach().cpu())
+        all_targets.append(target.detach().cpu())
         progress.set_postfix(acc=f"{meters['acc'].avg:.2f}")
 
-    return {key: meter.avg for key, meter in meters.items()}
+    result = {key: meter.avg for key, meter in meters.items()}
+    if all_prefix_logits:
+        dataset_reliability = temporal_reliability_metrics(torch.cat(all_prefix_logits), torch.cat(all_targets))
+        for key in ("final_accuracy", "mean_prefix_accuracy", "ever_regressed_fraction",
+                    "mean_population_regression", "mean_conditional_regression",
+                    "beneficial_transition_fraction", "destructive_transition_fraction",
+                    "stable_correct_fraction"):
+            result[key] = float(dataset_reliability[key].item())
+    return result
 
 
 @torch.no_grad()
