@@ -29,16 +29,26 @@ def policy_metrics(predictions: Tensor, targets: Tensor, stop_timesteps: Tensor,
 def binary_ranking_metrics(scores: Tensor, targets: Tensor) -> dict[str, Any]:
     scores, targets = scores.flatten().float(), targets.flatten().float()
     prevalence = targets.mean().item()
-    order = scores.argsort(descending=True)
-    y = targets[order]
-    positives, negatives = y.sum(), (1 - y).sum()
+    positives, negatives = targets.sum(), (1 - targets).sum()
     valid = bool(positives > 0 and negatives > 0)
     if valid:
-        tpr = torch.cat([y.new_zeros(1), y.cumsum(0) / positives])
-        fpr = torch.cat([y.new_zeros(1), (1 - y).cumsum(0) / negatives])
-        auroc = torch.trapz(tpr, fpr).item()
-        precision = y.cumsum(0) / torch.arange(1, len(y) + 1, device=y.device)
-        auprc = (precision * y).sum().div(positives).item()
+        positive_scores = scores[targets.bool()]
+        negative_scores = scores[~targets.bool()]
+        pairwise = positive_scores[:, None] - negative_scores[None, :]
+        auroc = (pairwise.gt(0).float() + 0.5 * pairwise.eq(0).float()).mean().item()
+        true_positives = scores.new_tensor(0.0)
+        predicted_positives = scores.new_tensor(0.0)
+        previous_recall = scores.new_tensor(0.0)
+        auprc_value = scores.new_tensor(0.0)
+        for threshold in scores.unique(sorted=True).flip(0):
+            tied = scores.eq(threshold)
+            true_positives += targets[tied].sum()
+            predicted_positives += tied.sum()
+            recall = true_positives / positives
+            precision = true_positives / predicted_positives
+            auprc_value += (recall - previous_recall) * precision
+            previous_recall = recall
+        auprc = auprc_value.item()
     else:
         auroc = auprc = math.nan
     return {"auroc": auroc, "auprc": auprc, "valid": valid, "positive_prevalence": prevalence}

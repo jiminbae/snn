@@ -24,5 +24,9 @@ class StoppingPolicyEvaluationTests(unittest.TestCase):
         second = binary_ranking_metrics(scores * 7 + 11, targets)["auroc"]
         self.assertEqual(first, second)
 
+    def test_auroc_ties_receive_half_credit(self):
+        metrics = binary_ranking_metrics(torch.zeros(4), torch.tensor([0.0, 1.0, 0.0, 1.0]))
+        self.assertEqual(metrics["auroc"], 0.5)
+
 
 if __name__ == "__main__": unittest.main()
