@@ -1,0 +1,31 @@
+{
+  "beneficial_transition_fraction": 4.058441638946533,
+  "correct_to_wrong_transition_count": 47.0,
+  "destructive_transition_fraction": 2.54328989982605,
+  "ever_recovered_fraction": 52.75590515136719,
+  "ever_regressed_fraction": 17.117116928100586,
+  "final_accuracy": 72.3484878540039,
+  "mean_conditional_regression": 3.6547434329986572,
+  "mean_population_regression": 2.54328989982605,
+  "mean_prefix_accuracy": 69.9337158203125,
+  "minimum_prefix_accuracy": 61.74242401123047,
+  "prefix_accuracy_curve": [
+    61.74242401123047,
+    68.18181610107422,
+    69.69696807861328,
+    70.45454406738281,
+    72.3484878540039,
+    72.3484878540039,
+    72.3484878540039,
+    72.3484878540039
+  ],
+  "prefix_loss_weight": 0.0,
+  "stable_correct_fraction": 72.3484878540039,
+  "temporal_confidence_threshold": 0.8,
+  "temporal_loss_weight": 1.0,
+  "temporal_margin": 0.0,
+  "temporal_selection_mode": "hard",
+  "temporal_temperature": 1.0,
+  "temporal_training_mode": "symmetric_kl",
+  "wrong_to_correct_transition_count": 75.0
+}

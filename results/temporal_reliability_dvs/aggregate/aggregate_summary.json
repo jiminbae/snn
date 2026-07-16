@@ -1,0 +1,18 @@
+{
+  "methods": [
+    "all_prefix_ce",
+    "final_ce",
+    "selective_regression_thr0.6",
+    "selective_regression_thr0.8",
+    "selective_regression_thr0.9",
+    "symmetric_kl"
+  ],
+  "recommendation": "no_go",
+  "recommendation_reasons": [
+    "Strict primary criteria passed in 0 of 3 matched seeds.",
+    "Matched seed count: 3 (go requires final_ce, all_prefix_ce, symmetric_kl, and selective results for at least 3).",
+    "Strict aggregate direction: False; weak aggregate direction: True with 1 supporting seeds; all-prefix dominance: False.",
+    "No statistical significance is claimed."
+  ],
+  "seed_count": 3
+}
