@@ -6,3 +6,15 @@ data/
 .venv/
 venv/
 env/
+
+# Downloaded dataset archives and generated smoke runs.
+*.tar.gz
+results/*smoke*/
+
+# Reproducible run artifacts that are too large or too noisy for Git.
+results/**/best_checkpoint.pt
+results/**/split_indices.pt
+results/**/prefix_trajectories.pt
+results/**/run.log
+results/**/commands.log
+results/**/launcher.log
