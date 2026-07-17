@@ -15,6 +15,7 @@ results/*smoke*/
 results/**/best_checkpoint.pt
 results/**/split_indices.pt
 results/**/prefix_trajectories.pt
+results/**/mechanism_analysis/trajectories/
 results/**/run.log
 results/**/commands.log
 results/**/launcher.log
