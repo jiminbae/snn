@@ -1,0 +1,39 @@
+{
+  "aggregate_regression_reduction": 1.3474646409352622,
+  "beneficial_transition_preservation_ratio": 1.6852853863618213,
+  "ever_recovered_preservation_ratio": 1.0148069953877288,
+  "final_accuracy_change_pp": -0.0033315022786410964,
+  "matched_methods": [
+    "final_ce",
+    "symmetric_kl",
+    "selective_regression_thr0.6"
+  ],
+  "matched_seed_count": 3,
+  "matched_seeds": [
+    3,
+    4,
+    5
+  ],
+  "mean_prefix_accuracy_change_vs_final_ce": -4.677500406901046,
+  "minimum_prefix_accuracy_change_vs_final_ce": -18.263336181640632,
+  "protocol_validation_passed": true,
+  "recommendation": "go",
+  "recommendation_reasons": [
+    "Regression reduced in 3 of 3 seeds.",
+    "Aggregate regression reduction: 1.3475 pp.",
+    "No statistical significance is claimed."
+  ],
+  "regression_reduced_seed_count": 3,
+  "required_methods": [
+    "final_ce",
+    "symmetric_kl",
+    "selective_regression_thr0.6"
+  ],
+  "required_seeds": [
+    3,
+    4,
+    5
+  ],
+  "selective_beneficial_vs_symmetric": 5.618571499983469,
+  "selective_destructive_vs_symmetric": -0.04190476487080255
+}

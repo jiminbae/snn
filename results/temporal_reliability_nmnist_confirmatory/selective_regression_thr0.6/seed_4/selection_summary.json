@@ -1,0 +1,15 @@
+{
+  "best_epoch": 24,
+  "best_validation_accuracy": 98.75833333333334,
+  "best_validation_loss": 0.04117215446995882,
+  "checkpoint_path": "best_checkpoint.pt",
+  "checkpoint_selection": "best_val",
+  "selection_metric": "val_acc",
+  "split_seed": 123,
+  "test_accuracy_at_selected_checkpoint": 98.83,
+  "test_size": 10000,
+  "total_epochs": 30,
+  "train_size": 48000,
+  "val_ratio": 0.2,
+  "validation_size": 12000
+}
