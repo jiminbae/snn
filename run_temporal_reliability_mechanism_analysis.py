@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import queue
 import re
@@ -14,13 +15,22 @@ from pathlib import Path
 
 import torch
 
+from export_confirmatory_prefix_trajectories import (
+    EXPORT_FORMAT_VERSION,
+    REQUIRED_RUN_FILES,
+    source_fingerprints,
+    validate_trajectory,
+)
+
 METHODS = ("final_ce", "symmetric_kl", "selective_regression_thr0.6")
 SEEDS = (3, 4, 5)
 
 
 def parse_gpus(value: str | None) -> list[str]:
     if value is None:
-        return [os.environ.get("CUDA_VISIBLE_DEVICES", "0")]
+        value = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+        if not value:
+            value = "0"
     if not re.fullmatch(r"[0-9]+(?:,[0-9]+)*", value):
         raise ValueError("parallel GPU list must look like 0,1,2,3")
     gpus = value.split(",")
@@ -29,23 +39,38 @@ def parse_gpus(value: str | None) -> list[str]:
     return gpus
 
 
-def trajectory_valid(path: Path, method: str, seed: int) -> bool:
-    if not path.is_file():
+def trajectory_valid(path: Path, run_dir: Path, method: str, seed: int) -> bool:
+    if not path.is_file() or any(
+        not (run_dir / name).is_file() for name in REQUIRED_RUN_FILES
+    ):
         return False
     try:
         data = torch.load(path, map_location="cpu", weights_only=False)
-        required = (
-            "prefix_logits", "targets", "predictions", "correct",
-            "true_class_probability", "sample_index",
+        config = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+        summary = json.loads(
+            (run_dir / "temporal_reliability_summary.json").read_text(encoding="utf-8")
         )
-        return (
-            all(key in data for key in required)
-            and data["method"] == method
-            and int(data["seed"]) == seed
-            and data["prefix_logits"].ndim == 3
-            and data["prefix_logits"].shape[1:] == (8, 10)
-            and data["targets"].shape[0] == data["prefix_logits"].shape[0]
+        prefix_metrics = json.loads(
+            (run_dir / "prefix_metrics.json").read_text(encoding="utf-8")
         )
+        if (
+            data.get("export_format_version") != EXPORT_FORMAT_VERSION
+            or data.get("source_fingerprints") != source_fingerprints(run_dir)
+            or data.get("config") != config
+            or data.get("export_settings") != {"batch_size": int(config["batch_size"]), "cudnn_benchmark": True}
+            or data.get("method") != method
+            or int(data.get("seed", -1)) != seed
+        ):
+            return False
+        validate_trajectory(
+            data,
+            expected_samples=int(prefix_metrics["num_samples"]),
+            expected_timesteps=int(config["tmax"]),
+            expected_classes=10,
+            expected_final_accuracy=float(summary["final_accuracy"]),
+            expected_prefix_curve=prefix_metrics["prefix_accuracy_curve"],
+        )
+        return True
     except Exception:
         return False
 
@@ -67,7 +92,7 @@ def build_exports(results_root: Path):
 def run_exports(results_root: Path, gpus: list[str], python_bin: str) -> None:
     pending = [
         item for item in build_exports(results_root)
-        if not trajectory_valid(item[1], item[2], item[3])
+        if not trajectory_valid(item[1], item[0], item[2], item[3])
     ]
     work = queue.Queue()
     for item in pending:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,19 @@ REQUIRED_RUN_FILES = (
     "temporal_reliability_summary.json",
     "prefix_metrics.json",
 )
+EXPORT_FORMAT_VERSION = 4
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def source_fingerprints(run_dir: Path) -> dict[str, str]:
+    return {name: sha256_file(run_dir / name) for name in REQUIRED_RUN_FILES}
 
 
 def build_trajectory(
@@ -33,6 +47,8 @@ def build_trajectory(
     seed: int,
     checkpoint_path: str,
     config: dict[str, Any],
+    fingerprints: dict[str, str] | None = None,
+    export_settings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     probabilities = prefix_logits.float().softmax(dim=-1)
     top2 = probabilities.topk(k=2, dim=-1).values
@@ -53,6 +69,9 @@ def build_trajectory(
         "seed": seed,
         "checkpoint_path": checkpoint_path,
         "config": config,
+        "export_format_version": EXPORT_FORMAT_VERSION,
+        "source_fingerprints": dict(fingerprints or {}),
+        "export_settings": dict(export_settings or {}),
     }
 
 
@@ -124,13 +143,17 @@ def export_run(
     output_path: Path,
     *,
     device_name: str,
-    batch_size: int,
+    batch_size: int | None,
     num_workers: int,
 ) -> dict[str, Any]:
     missing = [name for name in REQUIRED_RUN_FILES if not (run_dir / name).is_file()]
     if missing:
         raise FileNotFoundError(f"{run_dir}: missing required files {missing}")
     config = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+    torch.manual_seed(int(config["seed"]))
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(int(config["seed"]))
+        torch.backends.cudnn.benchmark = True
     summary = json.loads(
         (run_dir / "temporal_reliability_summary.json").read_text(encoding="utf-8")
     )
@@ -146,9 +169,10 @@ def export_run(
         event_frame_mode=config.get("event_frame_mode", "binary"),
         event_downsample_size=config.get("resolved_event_downsample_size"),
     )
+    resolved_batch_size = int(config["batch_size"]) if batch_size is None else batch_size
     loader = DataLoader(
         test_dataset,
-        batch_size=batch_size,
+        batch_size=resolved_batch_size,
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
@@ -192,6 +216,8 @@ def export_run(
         seed=int(config["seed"]),
         checkpoint_path=str(checkpoint_path),
         config=config,
+        fingerprints=source_fingerprints(run_dir),
+        export_settings={"batch_size": resolved_batch_size, "cudnn_benchmark": True},
     )
     spec = get_dataset_spec("nmnist")
     validate_trajectory(
@@ -218,7 +244,7 @@ def main() -> None:
     parser.add_argument("--run-dir", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--batch-size", type=int)
     parser.add_argument("--num-workers", type=int, default=4)
     args = parser.parse_args()
     result = export_run(

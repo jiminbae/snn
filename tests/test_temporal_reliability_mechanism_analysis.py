@@ -1,10 +1,16 @@
+import json
+import os
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 import torch
 
 from analyze_temporal_reliability_mechanism import (
     MIN_BIN_SUPPORT,
     mechanism_recommendation,
+    paired_bootstrap_intervals,
     paired_state_rows,
     seed_metrics,
     timing_row,
@@ -13,7 +19,9 @@ from export_confirmatory_prefix_trajectories import (
     build_trajectory,
     validate_alignment,
     validate_trajectory,
+    source_fingerprints,
 )
+from run_temporal_reliability_mechanism_analysis import parse_gpus, trajectory_valid
 
 
 def trajectory(correct, probability=None, method="final_ce", seed=3, targets=None, indices=None):
@@ -39,6 +47,8 @@ def recommendation_row(seed, regression=-1.0, eligible=-1.0, drop=-0.1, drop_fra
         "seed": seed,
         "common_correct_support": support,
         "common_wrong_support": support,
+        "eligible_common_correct_support": support,
+        "valid_eligible_transition_count": 1,
         "micro_matched_regression_difference": regression,
         "eligible_micro_regression_difference": eligible,
         "mean_drop_magnitude_difference": drop,
@@ -67,6 +77,29 @@ class MechanismAnalysisTests(unittest.TestCase):
     def test_low_recovery_blocks_support(self):
         rows = [recommendation_row(seed, recovery=0.79) for seed in (3, 4, 5)]
         self.assertNotEqual(mechanism_recommendation(rows)[0], "mechanism_supported")
+
+    def test_low_eligibility_support_is_insufficient(self):
+        rows = [recommendation_row(seed, support=99) for seed in (3, 4, 5)]
+        self.assertEqual(mechanism_recommendation(rows)[0], "insufficient_support")
+
+    def test_uninterpretable_eligibility_is_excluded_from_seed_micro(self):
+        selective = trajectory([[1, 1], [1, 1]], method="selective_regression_thr0.6")
+        final = trajectory([[1, 0], [1, 1]])
+        row = seed_metrics(paired_state_rows(selective, final, "final_ce"))
+        self.assertEqual(row["eligible_common_correct_total_support"], 2)
+        self.assertEqual(row["eligible_common_correct_support"], 0)
+        self.assertEqual(row["valid_eligible_transition_count"], 0)
+        self.assertTrue(torch.isnan(torch.tensor(row["eligible_micro_regression_difference"])))
+
+    def test_paired_bootstrap_produces_nonempty_intervals(self):
+        selective = trajectory([[1, 1]] * 100, method="selective_regression_thr0.6")
+        final = trajectory([[1, 0]] * 100)
+        rows = paired_bootstrap_intervals(selective, final, "final_ce", iterations=10)
+        self.assertEqual(len(rows), 4)
+        regression = next(row for row in rows if row["metric"] == "micro_matched_regression_difference")
+        self.assertEqual(regression["bootstrap_iterations"], 10)
+        self.assertEqual(regression["point_estimate"], -100.0)
+        self.assertEqual(regression["resampling_unit"], "paired_sample_id")
 
     def test_probability_drop_magnitude_reduced(self):
         selective = trajectory([[1, 1], [1, 1]], [[0.9, 0.88], [0.8, 0.79]], "selective_regression_thr0.6")
@@ -150,11 +183,56 @@ class MechanismAnalysisTests(unittest.TestCase):
         ]
         self.assertEqual(mechanism_recommendation(rows)[0], "mechanism_supported")
 
+    def test_never_correct_is_separate_from_delay(self):
+        selective = trajectory([
+            [0, 0, 0], [1, 1, 1], [0, 0, 0], [0, 1, 1],
+        ], method="selective_regression_thr0.6")
+        final = trajectory([
+            [1, 1, 1], [0, 0, 0], [0, 0, 0], [1, 1, 1],
+        ])
+        row = timing_row(selective, final, "final_ce")
+        self.assertEqual(row["first_correct_selective_only_never_count"], 1)
+        self.assertEqual(row["first_correct_comparator_only_never_count"], 1)
+        self.assertEqual(row["first_correct_both_never_count"], 1)
+        self.assertEqual(row["first_correct_both_valid_count"], 1)
+        self.assertEqual(row["first_correct_delay_mean"], 1.0)
+        self.assertEqual(row["first_correct_both_valid_differences"], [1.0])
+
     def test_first_correct_delay_detected(self):
         selective = trajectory([[0, 1, 1]], method="selective_regression_thr0.6")
         final = trajectory([[1, 1, 1]])
         row = timing_row(selective, final, "final_ce")
         self.assertEqual(row["first_correct_delay_mean"], 1.0)
+
+    def test_parallel_gpus_are_split_from_environment(self):
+        with patch.dict(os.environ, {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}):
+            self.assertEqual(parse_gpus(None), ["0", "1", "2", "3"])
+
+    def test_trajectory_cache_requires_current_source_fingerprints(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "final_ce" / "seed_3"
+            run_dir.mkdir(parents=True)
+            config = {"dataset": "nmnist", "model": "fixed_lif", "tmax": 2, "seed": 3, "batch_size": 2}
+            summary = {"final_accuracy": 100.0}
+            prefix_metrics = {"num_samples": 2, "prefix_accuracy_curve": [100.0, 100.0]}
+            (run_dir / "config.json").write_text(json.dumps(config))
+            (run_dir / "temporal_reliability_summary.json").write_text(json.dumps(summary))
+            (run_dir / "prefix_metrics.json").write_text(json.dumps(prefix_metrics))
+            (run_dir / "best_checkpoint.pt").write_bytes(b"checkpoint")
+            logits = torch.zeros(2, 2, 10)
+            logits[..., 0] = 1.0
+            cached = build_trajectory(
+                logits, torch.zeros(2, dtype=torch.long), method="final_ce", seed=3,
+                checkpoint_path=str(run_dir / "best_checkpoint.pt"), config=config,
+                fingerprints=source_fingerprints(run_dir),
+                export_settings={"batch_size": 2, "cudnn_benchmark": True},
+            )
+            cache_path = Path(tmp) / "trajectory.pt"
+            torch.save(cached, cache_path)
+            self.assertTrue(trajectory_valid(cache_path, run_dir, "final_ce", 3))
+            config["tmax"] = 3
+            (run_dir / "config.json").write_text(json.dumps(config))
+            self.assertFalse(trajectory_valid(cache_path, run_dir, "final_ce", 3))
 
 
 if __name__ == "__main__":

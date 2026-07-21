@@ -21,6 +21,8 @@ from utils.prefix_metrics import first_correct_timestep, stable_correct_timestep
 from utils.trajectory_export import load_torch_compat
 
 MIN_BIN_SUPPORT = 100
+BOOTSTRAP_ITERATIONS = 2000
+BOOTSTRAP_SEED = 2026
 CONFIDENCE_BINS = ((0.0, 0.4), (0.4, 0.6), (0.6, 0.8), (0.8, 0.9), (0.9, 1.000001))
 PRIMARY = "final_ce"
 SECONDARY = "symmetric_kl"
@@ -102,12 +104,16 @@ def paired_state_rows(
         probability.append(probability_row(selective, comparator, comparator_name, seed, t, common_correct, "common_correct"))
         probability.append(probability_row(selective, comparator, comparator_name, seed, t, eligible, "eligible_common_correct"))
         eligible_support = int(eligible.sum())
+        eligible_s_reg = int((eligible & ~sc[:, t + 1]).sum())
+        eligible_c_reg = int((eligible & ~cc[:, t + 1]).sum())
         confidence.append({
             "comparison": comparator_name, "seed": seed, "from_t": t + 1, "to_t": t + 2,
             "bin": "eligible>=0.6", "support_count": eligible_support,
-            "selective_regression_rate": rate(int((eligible & ~sc[:, t + 1]).sum()), eligible_support),
-            "comparator_regression_rate": rate(int((eligible & ~cc[:, t + 1]).sum()), eligible_support),
-            "paired_difference": rate(int((eligible & ~sc[:, t + 1]).sum()), eligible_support) - rate(int((eligible & ~cc[:, t + 1]).sum()), eligible_support),
+            "selective_regression_count": eligible_s_reg,
+            "comparator_regression_count": eligible_c_reg,
+            "selective_regression_rate": rate(eligible_s_reg, eligible_support),
+            "comparator_regression_rate": rate(eligible_c_reg, eligible_support),
+            "paired_difference": rate(eligible_s_reg, eligible_support) - rate(eligible_c_reg, eligible_support),
             "interpretable": eligible_support >= MIN_BIN_SUPPORT,
         })
         for low, high in CONFIDENCE_BINS:
@@ -161,16 +167,26 @@ def probability_row(selective, comparator, comparator_name, seed, t, mask, subse
     }
 
 
-def timing_row(selective, comparator, comparator_name):
-    def logits(t):
-        return t["prefix_logits"]
-    targets = selective["targets"]
-    sf = first_correct_timestep(logits(selective), targets).float()
-    cf = first_correct_timestep(logits(comparator), targets).float()
-    ss = stable_correct_timestep(logits(selective), targets).float()
-    cs = stable_correct_timestep(logits(comparator), targets).float()
-    result = {"comparison": comparator_name, "seed": int(selective["seed"])}
-    for name, difference in (("first_correct", sf - cf), ("stable_correct", ss - cs)):
+def timing_statistics(selective_times, comparator_times, name, sentinel):
+    selective_valid = selective_times < sentinel
+    comparator_valid = comparator_times < sentinel
+    both_valid = selective_valid & comparator_valid
+    selective_only_never = ~selective_valid & comparator_valid
+    comparator_only_never = selective_valid & ~comparator_valid
+    both_never = ~selective_valid & ~comparator_valid
+    difference = (selective_times[both_valid] - comparator_times[both_valid]).float()
+    total = int(selective_times.numel())
+    result = {}
+    for category, mask in (
+        ("both_valid", both_valid),
+        ("selective_only_never", selective_only_never),
+        ("comparator_only_never", comparator_only_never),
+        ("both_never", both_never),
+    ):
+        count = int(mask.sum())
+        result[f"{name}_{category}_count"] = count
+        result[f"{name}_{category}_fraction"] = count / total if total else float("nan")
+    if difference.numel():
         result.update({
             f"{name}_delay_mean": float(difference.mean()),
             f"{name}_delay_median": float(difference.median()),
@@ -180,6 +196,32 @@ def timing_row(selective, comparator, comparator_name):
             f"{name}_fraction_accelerated": float((difference < 0).float().mean()),
             f"{name}_fraction_unchanged": float((difference == 0).float().mean()),
         })
+    else:
+        for metric in (
+            "delay_mean", "delay_median", "delay_q25", "delay_q75",
+            "fraction_delayed", "fraction_accelerated", "fraction_unchanged",
+        ):
+            result[f"{name}_{metric}"] = float("nan")
+    result[f"{name}_both_valid_differences"] = difference.tolist()
+    return result
+
+
+def timing_row(selective, comparator, comparator_name):
+    targets = selective["targets"]
+    selective_logits = selective["prefix_logits"]
+    comparator_logits = comparator["prefix_logits"]
+    sentinel = selective_logits.shape[1] + 1
+    result = {"comparison": comparator_name, "seed": int(selective["seed"])}
+    result.update(timing_statistics(
+        first_correct_timestep(selective_logits, targets),
+        first_correct_timestep(comparator_logits, targets),
+        "first_correct", sentinel,
+    ))
+    result.update(timing_statistics(
+        stable_correct_timestep(selective_logits, targets),
+        stable_correct_timestep(comparator_logits, targets),
+        "stable_correct", sentinel,
+    ))
     return result
 
 
@@ -191,10 +233,12 @@ def seed_metrics(rows):
     rec_support = sum(row["common_wrong_count"] for row in recovery)
     s_rec = sum(row["selective_only_recovers_count"] + row["both_recover_count"] for row in recovery)
     c_rec = sum(row["comparator_only_recovers_count"] + row["both_recover_count"] for row in recovery)
-    eligible = [row for row in confidence if row["bin"] == "eligible>=0.6"]
+    all_eligible = [row for row in confidence if row["bin"] == "eligible>=0.6"]
+    eligible = [row for row in all_eligible if row["interpretable"]]
+    eligible_total_support = sum(row["support_count"] for row in all_eligible)
     eligible_support = sum(row["support_count"] for row in eligible)
-    eligible_s = sum(round(row["selective_regression_rate"] * row["support_count"] / 100) for row in eligible if row["support_count"])
-    eligible_c = sum(round(row["comparator_regression_rate"] * row["support_count"] / 100) for row in eligible if row["support_count"])
+    eligible_s = sum(row["selective_regression_count"] for row in eligible)
+    eligible_c = sum(row["comparator_regression_count"] for row in eligible)
     common_probability = [row for row in probability if row["subset"] == "common_correct"]
     seed = regression[0]["seed"] if regression else recovery[0]["seed"]
     return {
@@ -202,7 +246,9 @@ def seed_metrics(rows):
         "seed": seed,
         "common_correct_support": reg_support,
         "common_wrong_support": rec_support,
+        "eligible_common_correct_total_support": eligible_total_support,
         "eligible_common_correct_support": eligible_support,
+        "valid_eligible_transition_count": len(eligible),
         "micro_matched_regression_difference": rate(s_reg, reg_support) - rate(c_reg, reg_support),
         "macro_matched_regression_difference": safe_mean([row["matched_regression_difference"] for row in regression]),
         "valid_regression_transition_count": sum(not math.isnan(row["matched_regression_difference"]) for row in regression),
@@ -216,11 +262,103 @@ def seed_metrics(rows):
     }
 
 
+def paired_bootstrap_intervals(
+    selective, comparator, comparator_name,
+    iterations=BOOTSTRAP_ITERATIONS, bootstrap_seed=BOOTSTRAP_SEED,
+):
+    """Bootstrap paired sample IDs while retaining all transitions per sample."""
+    validate_alignment([selective, comparator])
+    sc = selective["correct"].bool()
+    cc = comparator["correct"].bool()
+    sp = selective["true_class_probability"].float()
+    cp = comparator["true_class_probability"].float()
+    common_correct = sc[:, :-1] & cc[:, :-1]
+    common_wrong = ~sc[:, :-1] & ~cc[:, :-1]
+    eligible = common_correct & (sp[:, :-1] >= 0.6) & (cp[:, :-1] >= 0.6)
+    valid_eligible = eligible.sum(dim=0) >= MIN_BIN_SUPPORT
+    eligible = eligible & valid_eligible[None, :]
+    selective_drop = (sp[:, :-1] - sp[:, 1:]).clamp_min(0)
+    comparator_drop = (cp[:, :-1] - cp[:, 1:]).clamp_min(0)
+
+    def summed(value):
+        return value.float().sum(dim=1)
+
+    contributions = {
+        "reg_support": summed(common_correct),
+        "selective_reg": summed(common_correct & ~sc[:, 1:]),
+        "comparator_reg": summed(common_correct & ~cc[:, 1:]),
+        "rec_support": summed(common_wrong),
+        "selective_rec": summed(common_wrong & sc[:, 1:]),
+        "comparator_rec": summed(common_wrong & cc[:, 1:]),
+        "eligible_support": summed(eligible),
+        "selective_eligible_reg": summed(eligible & ~sc[:, 1:]),
+        "comparator_eligible_reg": summed(eligible & ~cc[:, 1:]),
+        "selective_drop": summed(selective_drop * common_correct),
+        "comparator_drop": summed(comparator_drop * common_correct),
+    }
+
+    def values(weights):
+        totals = {key: float(torch.dot(value, weights)) for key, value in contributions.items()}
+        def percent_difference(left, right, support):
+            return 100.0 * (totals[left] - totals[right]) / totals[support] if totals[support] else float("nan")
+        return {
+            "micro_matched_regression_difference": percent_difference(
+                "selective_reg", "comparator_reg", "reg_support"
+            ),
+            "micro_matched_recovery_difference": percent_difference(
+                "selective_rec", "comparator_rec", "rec_support"
+            ),
+            "eligible_micro_regression_difference": percent_difference(
+                "selective_eligible_reg", "comparator_eligible_reg", "eligible_support"
+            ),
+            "mean_drop_magnitude_difference": (
+                (totals["selective_drop"] - totals["comparator_drop"]) / totals["reg_support"]
+                if totals["reg_support"] else float("nan")
+            ),
+        }
+
+    sample_count = sc.shape[0]
+    point = values(torch.ones(sample_count))
+    draws = {metric: [] for metric in point}
+    generator = torch.Generator().manual_seed(
+        bootstrap_seed + int(selective["seed"]) * 10 + (0 if comparator_name == PRIMARY else 1)
+    )
+    for _ in range(iterations):
+        indices = torch.randint(sample_count, (sample_count,), generator=generator)
+        weights = torch.bincount(indices, minlength=sample_count).float()
+        for metric, value in values(weights).items():
+            if not math.isnan(value):
+                draws[metric].append(value)
+    rows = []
+    for metric, estimate in point.items():
+        samples = torch.tensor(draws[metric], dtype=torch.float64)
+        rows.append({
+            "comparison": comparator_name,
+            "seed": int(selective["seed"]),
+            "metric": metric,
+            "point_estimate": estimate,
+            "ci_lower_2.5": float(torch.quantile(samples, 0.025)) if samples.numel() else float("nan"),
+            "ci_upper_97.5": float(torch.quantile(samples, 0.975)) if samples.numel() else float("nan"),
+            "bootstrap_iterations": iterations,
+            "resampling_unit": "paired_sample_id",
+        })
+    return rows
+
+
 def mechanism_recommendation(primary_seed_rows):
     if len(primary_seed_rows) < 3:
         return "insufficient_support", ["Three aligned training seeds are required."]
     if any(row["common_correct_support"] == 0 or row["common_wrong_support"] == 0 for row in primary_seed_rows):
         return "insufficient_support", ["Primary matched-state support is absent for at least one seed."]
+    if any(
+        row.get("eligible_common_correct_support", 0) < MIN_BIN_SUPPORT
+        or row.get("valid_eligible_transition_count", 0) == 0
+        for row in primary_seed_rows
+    ):
+        return "insufficient_support", [
+            f"Each primary seed needs at least {MIN_BIN_SUPPORT} eligible matched pairs "
+            "from interpretable transitions."
+        ]
     reg = [row["micro_matched_regression_difference"] for row in primary_seed_rows]
     eligible = [row["eligible_micro_regression_difference"] for row in primary_seed_rows]
     drop = [row["mean_drop_magnitude_difference"] for row in primary_seed_rows]
@@ -270,6 +408,7 @@ def analyze(results_root: Path) -> dict[str, Any]:
     all_rows = {key: [] for key in ("regression", "recovery", "probability", "confidence", "opportunity")}
     timing = []
     micro = []
+    bootstrap = []
     for comparator in (PRIMARY, SECONDARY):
         for seed in SEEDS:
             selective = load_trajectory(results_root, SELECTIVE, seed)
@@ -279,6 +418,7 @@ def analyze(results_root: Path) -> dict[str, Any]:
                 all_rows[key].extend(rows[key])
             timing.append(timing_row(selective, other, comparator))
             micro.append(seed_metrics(rows))
+            bootstrap.extend(paired_bootstrap_intervals(selective, other, comparator))
     primary = [row for row in micro if row["comparison"] == PRIMARY]
     decision, reasons = mechanism_recommendation(primary)
     macro = [{
@@ -290,15 +430,27 @@ def analyze(results_root: Path) -> dict[str, Any]:
     } for comparator in (PRIMARY, SECONDARY) for metric in (
         "macro_matched_regression_difference", "eligible_micro_regression_difference",
         "mean_drop_magnitude_difference", "probability_drop_fraction_difference")]
+    per_seed_macro = [{
+        "comparison": row["comparison"],
+        "seed": row["seed"],
+        "macro_matched_regression_difference": row["macro_matched_regression_difference"],
+        "mean_drop_magnitude_difference": row["mean_drop_magnitude_difference"],
+        "probability_drop_fraction_difference": row["probability_drop_fraction_difference"],
+    } for row in micro]
     write_csv(output / "per_seed_micro_metrics.csv", micro)
-    write_csv(output / "per_seed_macro_metrics.csv", macro)
+    write_csv(output / "per_seed_macro_metrics.csv", per_seed_macro)
+    write_csv(output / "aggregate_macro_metrics.csv", macro)
     write_csv(output / "per_transition_matched_regression.csv", all_rows["regression"])
     write_csv(output / "per_transition_matched_recovery.csv", all_rows["recovery"])
     write_csv(output / "confidence_matched_regression.csv", all_rows["confidence"])
     write_csv(output / "probability_drop_analysis.csv", all_rows["probability"])
     write_csv(output / "opportunity_decomposition.csv", all_rows["opportunity"])
-    write_csv(output / "first_stable_timestep_analysis.csv", timing)
-    write_csv(output / "bootstrap_intervals.csv", [])
+    timing_csv = [{
+        key: value for key, value in row.items()
+        if not key.endswith("_both_valid_differences")
+    } for row in timing]
+    write_csv(output / "first_stable_timestep_analysis.csv", timing_csv)
+    write_csv(output / "bootstrap_intervals.csv", bootstrap)
     summary = {
         "analysis_type": "post_hoc_mechanistic_analysis",
         "primary_comparison": f"{SELECTIVE} vs {PRIMARY}",
@@ -352,8 +504,16 @@ def make_plots(output, rows, timing):
     plt.legend(); plt.tight_layout(); plt.savefig(output / "opportunity_vs_conditional_regression.png"); plt.close()
     for prefix in ("first", "stable"):
         plt.figure(figsize=(7, 4))
-        values = [r[f"{prefix}_correct_delay_mean"] for r in timing if r["comparison"] == PRIMARY]
-        plt.step(sorted(values), [(i + 1) / len(values) for i in range(len(values))])
+        values = [
+            value
+            for row in timing if row["comparison"] == PRIMARY
+            for value in row[f"{prefix}_correct_both_valid_differences"]
+        ]
+        ordered = sorted(values)
+        if ordered:
+            plt.step(ordered, [(i + 1) / len(ordered) for i in range(len(ordered))])
+        plt.xlabel("Selective minus final CE timestep (both valid samples)")
+        plt.ylabel("Empirical CDF")
         plt.tight_layout(); plt.savefig(output / f"{prefix}_correct_timestep_cdf.png"); plt.close()
 
 
