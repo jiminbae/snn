@@ -1,0 +1,11 @@
+comparison,mean,metric,same_direction_seed_count,sample_standard_deviation
+final_ce,-0.12380487510739198,macro_matched_regression_difference,3,0.0332380358892382
+final_ce,-0.07904088547180439,eligible_micro_regression_difference,3,0.027388161762947207
+final_ce,-0.0016533068805334292,macro_mean_drop_magnitude_difference,3,0.0005198313337542434
+final_ce,-0.0013615303438600358,micro_mean_drop_magnitude_difference,3,0.0004708160325173132
+final_ce,-0.07526262991485141,probability_drop_fraction_difference,3,0.06778549804460127
+symmetric_kl,0.026220486987301284,macro_matched_regression_difference,0,0.018621533931607995
+symmetric_kl,0.0077912995669990924,eligible_micro_regression_difference,1,0.009755096007664554
+symmetric_kl,-4.9536917469508604e-05,macro_mean_drop_magnitude_difference,2,0.0002893048271299297
+symmetric_kl,-7.904510756000422e-05,micro_mean_drop_magnitude_difference,2,0.0002553178616138985
+symmetric_kl,-0.2925431345190321,probability_drop_fraction_difference,3,0.011487948170222136

@@ -1,0 +1,79 @@
+{
+  "analysis_type": "post_hoc_mechanistic_analysis",
+  "common_correct_support_by_seed": [
+    59828,
+    60970,
+    60428
+  ],
+  "common_wrong_support_by_seed": [
+    3147,
+    3788,
+    4379
+  ],
+  "eligible_common_correct_support_by_seed": [
+    58982,
+    60058,
+    59555
+  ],
+  "eligible_regression_difference_by_seed": [
+    -0.10681224780441492,
+    -0.07825768423856938,
+    -0.05205272437242885
+  ],
+  "eligible_regression_difference_mean": -0.07904088547180439,
+  "eligible_same_direction_count": 3,
+  "first_correct_delay_by_seed": [
+    0.6017985343933105,
+    0.31019872426986694,
+    0.28224262595176697
+  ],
+  "limitations": [
+    "The analysis was designed after observing the confirmatory test results.",
+    "The same N-MNIST test set is reused.",
+    "The analysis supports or weakens a mechanism interpretation but does not provide independent confirmatory evidence.",
+    "Early-prefix accuracy degradation remains a separate limitation even if the mechanism is supported.",
+    "Per-seed micro metrics repeat a sample across transitions and do not treat those pairs as independent."
+  ],
+  "macro_probability_drop_difference_by_seed": [
+    -0.0022315983951557428,
+    -0.0015034766235787953,
+    -0.0012248456228657492
+  ],
+  "macro_probability_drop_difference_mean": -0.0016533068805334292,
+  "matched_recovery_comparator_count": 5441,
+  "matched_recovery_preservation_by_seed": [
+    0.4558047493403694,
+    0.6935211267605634,
+    0.7046511627906977
+  ],
+  "matched_recovery_preservation_pooled": 0.6316853519573608,
+  "matched_recovery_selective_count": 3437,
+  "matched_regression_difference_by_seed": [
+    -0.130373738049074,
+    -0.09020829916352305,
+    -0.06950420334944066
+  ],
+  "matched_regression_difference_mean": -0.09669541352067923,
+  "matched_regression_same_direction_count": 3,
+  "matched_seed_count": 3,
+  "matched_seeds": [
+    3,
+    4,
+    5
+  ],
+  "primary_comparison": "selective_regression_thr0.6 vs final_ce",
+  "recommendation": "partial_support",
+  "recommendation_reasons": [
+    "Common-correct regression direction passed: True.",
+    "Eligibility-matched direction passed: True.",
+    "Direct probability protection passed: True.",
+    "Pooled matched recovery preservation passed: False (ratio=0.632).",
+    "This is a post-hoc mechanistic analysis, not independent confirmatory evidence."
+  ],
+  "secondary_comparison": "selective_regression_thr0.6 vs symmetric_kl",
+  "stable_correct_delay_by_seed": [
+    0.5538274049758911,
+    0.27837562561035156,
+    0.24265748262405396
+  ]
+}

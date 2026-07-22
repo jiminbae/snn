@@ -17,6 +17,7 @@ import torch
 
 from export_confirmatory_prefix_trajectories import (
     EXPORT_FORMAT_VERSION,
+    MAX_PREFIX_CORRECT_COUNT_DRIFT,
     REQUIRED_RUN_FILES,
     source_fingerprints,
     validate_trajectory,
@@ -62,7 +63,16 @@ def trajectory_valid(path: Path, run_dir: Path, method: str, seed: int) -> bool:
             or int(data.get("seed", -1)) != seed
         ):
             return False
-        validate_trajectory(
+        validation = data.get("validation", {})
+        if (
+            not validation
+            or validation.get(
+                "max_abs_prefix_correct_count_drift",
+                MAX_PREFIX_CORRECT_COUNT_DRIFT + 1,
+            ) > MAX_PREFIX_CORRECT_COUNT_DRIFT
+        ):
+            return False
+        current_validation = validate_trajectory(
             data,
             expected_samples=int(prefix_metrics["num_samples"]),
             expected_timesteps=int(config["tmax"]),
@@ -70,7 +80,7 @@ def trajectory_valid(path: Path, run_dir: Path, method: str, seed: int) -> bool:
             expected_final_accuracy=float(summary["final_accuracy"]),
             expected_prefix_curve=prefix_metrics["prefix_accuracy_curve"],
         )
-        return True
+        return validation == current_validation
     except Exception:
         return False
 

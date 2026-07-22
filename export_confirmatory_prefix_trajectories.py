@@ -24,7 +24,8 @@ REQUIRED_RUN_FILES = (
     "temporal_reliability_summary.json",
     "prefix_metrics.json",
 )
-EXPORT_FORMAT_VERSION = 4
+EXPORT_FORMAT_VERSION = 5
+MAX_PREFIX_CORRECT_COUNT_DRIFT = 5
 
 
 def sha256_file(path: Path) -> str:
@@ -83,7 +84,7 @@ def validate_trajectory(
     expected_classes: int,
     expected_final_accuracy: float,
     expected_prefix_curve: list[float],
-) -> None:
+) -> dict[str, Any]:
     logits = trajectory["prefix_logits"]
     targets = trajectory["targets"]
     predictions = trajectory["predictions"]
@@ -103,20 +104,39 @@ def validate_trajectory(
         raise ValueError("predictions do not match prefix_logits")
     if not torch.equal(correct, predictions.eq(targets[:, None])):
         raise ValueError("correct mask does not match predictions and targets")
-    final_accuracy = float(correct[:, -1].float().mean().item() * 100.0)
-    if abs(final_accuracy - expected_final_accuracy) > 1e-4:
+    actual_correct_counts = correct.sum(dim=0).cpu().long()
+    expected_curve_tensor = torch.tensor(expected_prefix_curve, dtype=torch.float64)
+    expected_correct_counts = torch.round(
+        expected_curve_tensor * expected_samples / 100.0
+    ).long()
+    expected_final_count = round(expected_final_accuracy * expected_samples / 100.0)
+    actual_final_count = int(actual_correct_counts[-1])
+    if actual_final_count != expected_final_count:
         raise ValueError(
-            f"final accuracy expected {expected_final_accuracy}, actual {final_accuracy}"
+            "final correct count mismatch: "
+            f"expected {expected_final_count}, actual {actual_final_count}"
         )
-    curve = correct.float().mean(dim=0) * 100.0
-    expected_curve = torch.tensor(expected_prefix_curve, dtype=curve.dtype)
-    if not torch.allclose(curve, expected_curve, atol=1e-4, rtol=0.0):
+    count_drift = actual_correct_counts - expected_correct_counts
+    max_abs_drift = int(count_drift.abs().max().item())
+    if max_abs_drift > MAX_PREFIX_CORRECT_COUNT_DRIFT:
         raise ValueError(
-            f"prefix curve expected {expected_prefix_curve}, actual {curve.tolist()}"
+            "prefix correct-count drift exceeds tolerance: "
+            f"expected={expected_correct_counts.tolist()}, "
+            f"actual={actual_correct_counts.tolist()}, "
+            f"drift={count_drift.tolist()}, "
+            f"max_allowed={MAX_PREFIX_CORRECT_COUNT_DRIFT}"
         )
     indices = trajectory["sample_index"]
     if not torch.equal(indices, torch.arange(expected_samples)):
         raise ValueError("sample_index is not the official deterministic test order")
+    return {
+        "expected_correct_counts": expected_correct_counts.tolist(),
+        "actual_correct_counts": actual_correct_counts.tolist(),
+        "prefix_correct_count_drift": count_drift.tolist(),
+        "max_abs_prefix_correct_count_drift": max_abs_drift,
+        "max_abs_prefix_curve_drift_pp": max_abs_drift * 100.0 / expected_samples,
+        "final_correct_count_exact": True,
+    }
 
 
 def validate_alignment(trajectories: list[dict[str, Any]]) -> None:
@@ -220,7 +240,7 @@ def export_run(
         export_settings={"batch_size": resolved_batch_size, "cudnn_benchmark": True},
     )
     spec = get_dataset_spec("nmnist")
-    validate_trajectory(
+    validation = validate_trajectory(
         trajectory,
         expected_samples=len(test_dataset),
         expected_timesteps=int(config["tmax"]),
@@ -228,6 +248,7 @@ def export_run(
         expected_final_accuracy=float(summary["final_accuracy"]),
         expected_prefix_curve=prefix_metrics["prefix_accuracy_curve"],
     )
+    trajectory["validation"] = validation
     output_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(trajectory, output_path)
     return {

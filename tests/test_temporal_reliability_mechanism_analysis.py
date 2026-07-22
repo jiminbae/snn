@@ -200,11 +200,46 @@ class MechanismAnalysisTests(unittest.TestCase):
 
     def test_final_accuracy_mismatch_raises(self):
         item = trajectory([[1, 1], [1, 0]])
-        with self.assertRaisesRegex(ValueError, "final accuracy"):
+        with self.assertRaisesRegex(ValueError, "final correct count"):
             validate_trajectory(
                 item, expected_samples=2, expected_timesteps=2,
                 expected_classes=2, expected_final_accuracy=100.0,
                 expected_prefix_curve=[100.0, 50.0],
+            )
+
+    def test_prefix_count_drift_within_tolerance_passes(self):
+        logits = torch.full((10000, 2, 2), -2.0)
+        logits[..., 0] = 2.0
+        logits[:3, 0, 0] = -2.0
+        logits[:3, 0, 1] = 2.0
+        item = build_trajectory(
+            logits, torch.zeros(10000, dtype=torch.long), method="final_ce", seed=3,
+            checkpoint_path="checkpoint.pt", config={},
+        )
+        validation = validate_trajectory(
+            item, expected_samples=10000, expected_timesteps=2,
+            expected_classes=2, expected_final_accuracy=100.0,
+            expected_prefix_curve=[100.0, 100.0],
+        )
+        self.assertEqual(validation["prefix_correct_count_drift"], [-3, 0])
+        self.assertEqual(validation["max_abs_prefix_correct_count_drift"], 3)
+        self.assertAlmostEqual(validation["max_abs_prefix_curve_drift_pp"], 0.03)
+        self.assertTrue(validation["final_correct_count_exact"])
+
+    def test_prefix_count_drift_above_tolerance_fails(self):
+        logits = torch.full((10000, 2, 2), -2.0)
+        logits[..., 0] = 2.0
+        logits[:6, 0, 0] = -2.0
+        logits[:6, 0, 1] = 2.0
+        item = build_trajectory(
+            logits, torch.zeros(10000, dtype=torch.long), method="final_ce", seed=3,
+            checkpoint_path="checkpoint.pt", config={},
+        )
+        with self.assertRaisesRegex(ValueError, "correct-count drift exceeds tolerance"):
+            validate_trajectory(
+                item, expected_samples=10000, expected_timesteps=2,
+                expected_classes=2, expected_final_accuracy=100.0,
+                expected_prefix_curve=[100.0, 100.0],
             )
 
     def test_zero_common_correct_does_not_crash(self):
@@ -287,6 +322,11 @@ class MechanismAnalysisTests(unittest.TestCase):
                 checkpoint_path=str(run_dir / "best_checkpoint.pt"), config=config,
                 fingerprints=source_fingerprints(run_dir),
                 export_settings={"batch_size": 2, "cudnn_benchmark": True},
+            )
+            cached["validation"] = validate_trajectory(
+                cached, expected_samples=2, expected_timesteps=2,
+                expected_classes=10, expected_final_accuracy=100.0,
+                expected_prefix_curve=[100.0, 100.0],
             )
             cache_path = Path(tmp) / "trajectory.pt"
             torch.save(cached, cache_path)

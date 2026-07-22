@@ -439,7 +439,7 @@ def mechanism_recommendation(primary_seed_rows):
 def write_csv(path, rows):
     fields = sorted({key for row in rows for key in row}) if rows else []
     with Path(path).open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         if fields:
             writer.writeheader()
             writer.writerows(rows)
