@@ -255,9 +255,25 @@ def seed_metrics(rows):
         "micro_matched_recovery_difference": rate(s_rec, rec_support) - rate(c_rec, rec_support),
         "selective_matched_recovery_rate": rate(s_rec, rec_support),
         "comparator_matched_recovery_rate": rate(c_rec, rec_support),
-        "recovery_preservation_ratio": (s_rec / max(1, c_rec)),
+        "selective_matched_recovery_count": s_rec,
+        "comparator_matched_recovery_count": c_rec,
+        "recovery_preservation_ratio": (s_rec / c_rec) if c_rec else float("nan"),
         "eligible_micro_regression_difference": rate(eligible_s, eligible_support) - rate(eligible_c, eligible_support),
-        "mean_drop_magnitude_difference": safe_mean([row["mean_drop_magnitude_difference"] for row in common_probability]),
+        "macro_mean_drop_magnitude_difference": safe_mean(
+            [row["mean_drop_magnitude_difference"] for row in common_probability]
+        ),
+        "micro_mean_drop_magnitude_difference": (
+            sum(
+                row["selective_mean_drop_magnitude"] * row["support_count"]
+                for row in common_probability
+                if not math.isnan(row["selective_mean_drop_magnitude"])
+            )
+            - sum(
+                row["comparator_mean_drop_magnitude"] * row["support_count"]
+                for row in common_probability
+                if not math.isnan(row["comparator_mean_drop_magnitude"])
+            )
+        ) / reg_support if reg_support else float("nan"),
         "probability_drop_fraction_difference": safe_mean([row["probability_drop_fraction_difference"] for row in common_probability]),
     }
 
@@ -295,12 +311,33 @@ def paired_bootstrap_intervals(
         "comparator_eligible_reg": summed(eligible & ~cc[:, 1:]),
         "selective_drop": summed(selective_drop * common_correct),
         "comparator_drop": summed(comparator_drop * common_correct),
+        "probability_support_by_transition": common_correct.float(),
+        "selective_drop_by_transition": selective_drop * common_correct,
+        "comparator_drop_by_transition": comparator_drop * common_correct,
     }
 
     def values(weights):
-        totals = {key: float(torch.dot(value, weights)) for key, value in contributions.items()}
+        totals = {
+            key: float(torch.dot(value, weights))
+            for key, value in contributions.items()
+            if value.ndim == 1
+        }
+
         def percent_difference(left, right, support):
             return 100.0 * (totals[left] - totals[right]) / totals[support] if totals[support] else float("nan")
+
+        support_by_transition = torch.matmul(weights, contributions["probability_support_by_transition"])
+        selective_drop_by_transition = torch.matmul(weights, contributions["selective_drop_by_transition"])
+        comparator_drop_by_transition = torch.matmul(weights, contributions["comparator_drop_by_transition"])
+        valid_transitions = support_by_transition > 0
+        macro_drop_difference = (
+            (
+                selective_drop_by_transition[valid_transitions] / support_by_transition[valid_transitions]
+                - comparator_drop_by_transition[valid_transitions] / support_by_transition[valid_transitions]
+            ).mean().item()
+            if valid_transitions.any()
+            else float("nan")
+        )
         return {
             "micro_matched_regression_difference": percent_difference(
                 "selective_reg", "comparator_reg", "reg_support"
@@ -311,7 +348,8 @@ def paired_bootstrap_intervals(
             "eligible_micro_regression_difference": percent_difference(
                 "selective_eligible_reg", "comparator_eligible_reg", "eligible_support"
             ),
-            "mean_drop_magnitude_difference": (
+            "macro_mean_drop_magnitude_difference": macro_drop_difference,
+            "micro_mean_drop_magnitude_difference": (
                 (totals["selective_drop"] - totals["comparator_drop"]) / totals["reg_support"]
                 if totals["reg_support"] else float("nan")
             ),
@@ -361,16 +399,27 @@ def mechanism_recommendation(primary_seed_rows):
         ]
     reg = [row["micro_matched_regression_difference"] for row in primary_seed_rows]
     eligible = [row["eligible_micro_regression_difference"] for row in primary_seed_rows]
-    drop = [row["mean_drop_magnitude_difference"] for row in primary_seed_rows]
+    drop = [row["macro_mean_drop_magnitude_difference"] for row in primary_seed_rows]
     drop_fraction = [row["probability_drop_fraction_difference"] for row in primary_seed_rows]
     recovery = [row["recovery_preservation_ratio"] for row in primary_seed_rows]
+    aggregate_selective = sum(row["selective_matched_recovery_count"] for row in primary_seed_rows)
+    aggregate_comparator = sum(row["comparator_matched_recovery_count"] for row in primary_seed_rows)
+    aggregate_recovery_ratio = (
+        aggregate_selective / aggregate_comparator
+        if aggregate_comparator > 0
+        else float("nan")
+    )
     reg_ok = sum(value < 0 for value in reg) >= 2 and safe_mean(reg) < 0
     eligible_ok = sum(value < 0 for value in eligible) >= 2 and safe_mean(eligible) < 0
     protection_ok = (
         (sum(value < 0 for value in drop) >= 2 and safe_mean(drop) < 0)
         or (sum(value < 0 for value in drop_fraction) >= 2 and safe_mean(drop_fraction) < 0)
     )
-    recovery_ok = safe_mean(recovery) >= 0.9 and min(recovery) >= 0.8
+    recovery_ok = (
+        math.isfinite(aggregate_recovery_ratio)
+        and aggregate_recovery_ratio >= 0.9
+        and all(math.isfinite(value) and value >= 0.8 for value in recovery)
+    )
     if reg_ok and eligible_ok and protection_ok and recovery_ok:
         decision = "mechanism_supported"
     elif not reg_ok or safe_mean(eligible) >= 0:
@@ -381,7 +430,8 @@ def mechanism_recommendation(primary_seed_rows):
         f"Common-correct regression direction passed: {reg_ok}.",
         f"Eligibility-matched direction passed: {eligible_ok}.",
         f"Direct probability protection passed: {protection_ok}.",
-        f"Matched recovery preservation passed: {recovery_ok}.",
+        f"Pooled matched recovery preservation passed: {recovery_ok} "
+        f"(ratio={aggregate_recovery_ratio:.3f}).",
         "This is a post-hoc mechanistic analysis, not independent confirmatory evidence.",
     ]
 
@@ -429,12 +479,13 @@ def analyze(results_root: Path) -> dict[str, Any]:
         "same_direction_seed_count": sum(row[metric] < 0 for row in micro if row["comparison"] == comparator),
     } for comparator in (PRIMARY, SECONDARY) for metric in (
         "macro_matched_regression_difference", "eligible_micro_regression_difference",
-        "mean_drop_magnitude_difference", "probability_drop_fraction_difference")]
+        "macro_mean_drop_magnitude_difference", "micro_mean_drop_magnitude_difference",
+        "probability_drop_fraction_difference")]
     per_seed_macro = [{
         "comparison": row["comparison"],
         "seed": row["seed"],
         "macro_matched_regression_difference": row["macro_matched_regression_difference"],
-        "mean_drop_magnitude_difference": row["mean_drop_magnitude_difference"],
+        "macro_mean_drop_magnitude_difference": row["macro_mean_drop_magnitude_difference"],
         "probability_drop_fraction_difference": row["probability_drop_fraction_difference"],
     } for row in micro]
     write_csv(output / "per_seed_micro_metrics.csv", micro)
@@ -466,8 +517,20 @@ def analyze(results_root: Path) -> dict[str, Any]:
         "eligible_regression_difference_mean": safe_mean([row["eligible_micro_regression_difference"] for row in primary]),
         "eligible_same_direction_count": sum(row["eligible_micro_regression_difference"] < 0 for row in primary),
         "matched_recovery_preservation_by_seed": [row["recovery_preservation_ratio"] for row in primary],
-        "matched_recovery_preservation_mean": safe_mean([row["recovery_preservation_ratio"] for row in primary]),
-        "probability_drop_difference_by_seed": [row["mean_drop_magnitude_difference"] for row in primary],
+        "matched_recovery_selective_count": sum(row["selective_matched_recovery_count"] for row in primary),
+        "matched_recovery_comparator_count": sum(row["comparator_matched_recovery_count"] for row in primary),
+        "matched_recovery_preservation_pooled": (
+            sum(row["selective_matched_recovery_count"] for row in primary)
+            / sum(row["comparator_matched_recovery_count"] for row in primary)
+            if sum(row["comparator_matched_recovery_count"] for row in primary) > 0
+            else float("nan")
+        ),
+        "macro_probability_drop_difference_by_seed": [
+            row["macro_mean_drop_magnitude_difference"] for row in primary
+        ],
+        "macro_probability_drop_difference_mean": safe_mean([
+            row["macro_mean_drop_magnitude_difference"] for row in primary
+        ]),
         "first_correct_delay_by_seed": [row["first_correct_delay_mean"] for row in timing if row["comparison"] == PRIMARY],
         "stable_correct_delay_by_seed": [row["stable_correct_delay_mean"] for row in timing if row["comparison"] == PRIMARY],
         "recommendation": decision, "recommendation_reasons": reasons,
@@ -526,4 +589,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -42,7 +42,23 @@ def trajectory(correct, probability=None, method="final_ce", seed=3, targets=Non
     return result
 
 
-def recommendation_row(seed, regression=-1.0, eligible=-1.0, drop=-0.1, drop_fraction=-0.1, recovery=1.0, support=100):
+def recommendation_row(
+    seed,
+    regression=-1.0,
+    eligible=-1.0,
+    drop=-0.1,
+    drop_fraction=-0.1,
+    recovery=1.0,
+    support=100,
+    selective_recovery_count=None,
+    comparator_recovery_count=None,
+):
+    comparator_recovery_count = support if comparator_recovery_count is None else comparator_recovery_count
+    selective_recovery_count = (
+        round(recovery * comparator_recovery_count)
+        if selective_recovery_count is None
+        else selective_recovery_count
+    )
     return {
         "seed": seed,
         "common_correct_support": support,
@@ -51,9 +67,14 @@ def recommendation_row(seed, regression=-1.0, eligible=-1.0, drop=-0.1, drop_fra
         "valid_eligible_transition_count": 1,
         "micro_matched_regression_difference": regression,
         "eligible_micro_regression_difference": eligible,
-        "mean_drop_magnitude_difference": drop,
+        "macro_mean_drop_magnitude_difference": drop,
         "probability_drop_fraction_difference": drop_fraction,
-        "recovery_preservation_ratio": recovery,
+        "recovery_preservation_ratio": (
+            selective_recovery_count / comparator_recovery_count
+            if comparator_recovery_count else float("nan")
+        ),
+        "selective_matched_recovery_count": selective_recovery_count,
+        "comparator_matched_recovery_count": comparator_recovery_count,
     }
 
 
@@ -78,6 +99,18 @@ class MechanismAnalysisTests(unittest.TestCase):
         rows = [recommendation_row(seed, recovery=0.79) for seed in (3, 4, 5)]
         self.assertNotEqual(mechanism_recommendation(rows)[0], "mechanism_supported")
 
+    def test_pooled_recovery_ratio_blocks_unrepresentative_seed_average(self):
+        rows = [
+            recommendation_row(3, support=1000, selective_recovery_count=800, comparator_recovery_count=1000),
+            recommendation_row(4, selective_recovery_count=10, comparator_recovery_count=10),
+            recommendation_row(5, selective_recovery_count=10, comparator_recovery_count=10),
+        ]
+        self.assertGreaterEqual(
+            sum(row["recovery_preservation_ratio"] for row in rows) / len(rows), 0.9
+        )
+        self.assertTrue(all(row["recovery_preservation_ratio"] >= 0.8 for row in rows))
+        self.assertNotEqual(mechanism_recommendation(rows)[0], "mechanism_supported")
+
     def test_low_eligibility_support_is_insufficient(self):
         rows = [recommendation_row(seed, support=99) for seed in (3, 4, 5)]
         self.assertEqual(mechanism_recommendation(rows)[0], "insufficient_support")
@@ -95,11 +128,37 @@ class MechanismAnalysisTests(unittest.TestCase):
         selective = trajectory([[1, 1]] * 100, method="selective_regression_thr0.6")
         final = trajectory([[1, 0]] * 100)
         rows = paired_bootstrap_intervals(selective, final, "final_ce", iterations=10)
-        self.assertEqual(len(rows), 4)
+        self.assertEqual(len(rows), 5)
         regression = next(row for row in rows if row["metric"] == "micro_matched_regression_difference")
         self.assertEqual(regression["bootstrap_iterations"], 10)
         self.assertEqual(regression["point_estimate"], -100.0)
         self.assertEqual(regression["resampling_unit"], "paired_sample_id")
+
+    def test_bootstrap_macro_drop_matches_recommendation_metric(self):
+        selective = trajectory(
+            [[1, 1, 1], [1, 0, 0]],
+            [[0.9, 0.8, 0.7], [0.9, 0.1, 0.1]],
+            "selective_regression_thr0.6",
+        )
+        final = trajectory(
+            [[1, 1, 1], [1, 0, 0]],
+            [[0.9, 0.5, 0.4], [0.9, 0.1, 0.1]],
+        )
+        metrics = seed_metrics(paired_state_rows(selective, final, "final_ce"))
+        intervals = paired_bootstrap_intervals(selective, final, "final_ce", iterations=10)
+        macro = next(
+            row for row in intervals if row["metric"] == "macro_mean_drop_magnitude_difference"
+        )
+        micro = next(
+            row for row in intervals if row["metric"] == "micro_mean_drop_magnitude_difference"
+        )
+        self.assertAlmostEqual(
+            macro["point_estimate"], metrics["macro_mean_drop_magnitude_difference"]
+        )
+        self.assertAlmostEqual(
+            micro["point_estimate"], metrics["micro_mean_drop_magnitude_difference"]
+        )
+        self.assertNotEqual(macro["point_estimate"], micro["point_estimate"])
 
     def test_probability_drop_magnitude_reduced(self):
         selective = trajectory([[1, 1], [1, 1]], [[0.9, 0.88], [0.8, 0.79]], "selective_regression_thr0.6")
@@ -166,6 +225,8 @@ class MechanismAnalysisTests(unittest.TestCase):
         row = seed_metrics(paired_state_rows(a, b, "final_ce"))
         self.assertEqual(row["seed"], 3)
         self.assertEqual(row["common_correct_support"], 2)
+        self.assertEqual(row["selective_matched_recovery_count"], 0)
+        self.assertEqual(row["comparator_matched_recovery_count"], 0)
 
     def test_one_seed_improvement_is_not_enough(self):
         rows = [
@@ -237,4 +298,3 @@ class MechanismAnalysisTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
