@@ -35,11 +35,11 @@
     "Per-seed micro metrics repeat a sample across transitions and do not treat those pairs as independent."
   ],
   "macro_probability_drop_difference_by_seed": [
-    -0.0022315983951557428,
+    -0.0022315983785249826,
     -0.0015034766235787953,
     -0.0012248456228657492
   ],
-  "macro_probability_drop_difference_mean": -0.0016533068805334292,
+  "macro_probability_drop_difference_mean": -0.0016533068749898423,
   "matched_recovery_comparator_count": 5441,
   "matched_recovery_preservation_by_seed": [
     0.4558047493403694,

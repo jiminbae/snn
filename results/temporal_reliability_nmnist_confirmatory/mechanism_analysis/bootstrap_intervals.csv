@@ -3,7 +3,7 @@ bootstrap_iterations,ci_lower_2.5,ci_upper_97.5,comparison,metric,point_estimate
 2000,-28.378705740624344,-24.150717478909314,final_ce,micro_matched_recovery_difference,-26.215443279313632,paired_sample_id,3
 2000,-0.14120449132357946,-0.07290702789737005,final_ce,eligible_micro_regression_difference,-0.10681224780441491,paired_sample_id,3
 2000,-0.0025350648851599545,-0.0019400212448090317,final_ce,macro_mean_drop_magnitude_difference,-0.002231598598882556,paired_sample_id,3
-2000,-0.0021311994861167964,-0.0016465206246053493,final_ce,micro_mean_drop_magnitude_difference,-0.0018837439660808577,paired_sample_id,3
+2000,-0.0021311994829212653,-0.001646520560845286,final_ce,micro_mean_drop_magnitude_difference,-0.0018837439660808577,paired_sample_id,3
 2000,-0.12900349713892,-0.050816131696236,final_ce,micro_matched_regression_difference,-0.09020829916352305,paired_sample_id,4
 2000,-16.063506575917835,-12.546549788183045,final_ce,micro_matched_recovery_difference,-14.361140443505807,paired_sample_id,4
 2000,-0.10899252228794351,-0.049785455557322666,final_ce,eligible_micro_regression_difference,-0.07825768423856938,paired_sample_id,4
@@ -17,8 +17,8 @@ bootstrap_iterations,ci_lower_2.5,ci_upper_97.5,comparison,metric,point_estimate
 2000,-0.003329674853290969,0.0448657020760072,symmetric_kl,micro_matched_regression_difference,0.01991668188079866,paired_sample_id,3
 2000,-13.617504835589942,-6.439888529823508,symmetric_kl,micro_matched_recovery_difference,-9.88446726572529,paired_sample_id,3
 2000,-0.0016848604177703945,0.03212040769257342,symmetric_kl,eligible_micro_regression_difference,0.015129355993746534,paired_sample_id,3
-2000,-0.00023695181116636376,3.965925061493178e-05,symmetric_kl,macro_mean_drop_magnitude_difference,-0.00010027728421846405,paired_sample_id,3
-2000,-0.00026737068884837484,-1.5061446963854761e-05,symmetric_kl,micro_mean_drop_magnitude_difference,-0.00013941274643165932,paired_sample_id,3
+2000,-0.00023695181080256588,3.965928608522515e-05,symmetric_kl,macro_mean_drop_magnitude_difference,-0.00010027724783867598,paired_sample_id,3
+2000,-0.00026737068884837484,-1.5061323262460076e-05,symmetric_kl,micro_mean_drop_magnitude_difference,-0.00013941274643165932,paired_sample_id,3
 2000,-0.032200480601944116,0.04036173858401449,symmetric_kl,micro_matched_regression_difference,0.0048486415722528405,paired_sample_id,4
 2000,-11.934844868735084,-5.664801729710453,symmetric_kl,micro_matched_recovery_difference,-8.690176322418136,paired_sample_id,4
 2000,-0.027842048803755893,0.02132683266896287,symmetric_kl,eligible_micro_regression_difference,-0.0032788497794973524,paired_sample_id,4
