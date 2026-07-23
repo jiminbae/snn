@@ -1,0 +1,71 @@
+{
+  "features": [
+    {
+      "description": "Top-1 probability of the accepted previous candidate.",
+      "name": "previous_top1_confidence",
+      "uses_target": false
+    },
+    {
+      "description": "Top-1 minus top-2 probability of the accepted previous candidate.",
+      "name": "previous_top1_margin",
+      "uses_target": false
+    },
+    {
+      "description": "Entropy of the accepted previous distribution divided by log(C).",
+      "name": "previous_normalized_entropy",
+      "uses_target": false
+    },
+    {
+      "description": "Top-1 probability of the new raw candidate.",
+      "name": "new_top1_confidence",
+      "uses_target": false
+    },
+    {
+      "description": "Top-1 minus top-2 probability of the new raw candidate.",
+      "name": "new_top1_margin",
+      "uses_target": false
+    },
+    {
+      "description": "Entropy of the new raw distribution divided by log(C).",
+      "name": "new_normalized_entropy",
+      "uses_target": false
+    },
+    {
+      "description": "Whether previous and new candidates predict the same class.",
+      "name": "same_top1_class",
+      "uses_target": false
+    },
+    {
+      "description": "New distribution probability assigned to the previous top-1 class.",
+      "name": "new_probability_of_previous_class",
+      "uses_target": false
+    },
+    {
+      "description": "Previous distribution probability assigned to the new top-1 class.",
+      "name": "previous_probability_of_new_class",
+      "uses_target": false
+    },
+    {
+      "description": "New minus previous top-1 confidence.",
+      "name": "top1_confidence_delta",
+      "uses_target": false
+    },
+    {
+      "description": "New minus previous top-1 margin.",
+      "name": "top1_margin_delta",
+      "uses_target": false
+    },
+    {
+      "description": "Jensen-Shannon divergence between candidate distributions.",
+      "name": "js_divergence",
+      "uses_target": false
+    },
+    {
+      "description": "One-based destination timestep divided by T.",
+      "name": "normalized_timestep",
+      "uses_target": false
+    }
+  ],
+  "target": "oracle_block_destructive KEEP action",
+  "target_free_at_inference": true
+}

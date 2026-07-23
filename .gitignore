@@ -16,6 +16,7 @@ results/**/best_checkpoint.pt
 results/**/split_indices.pt
 results/**/prefix_trajectories.pt
 results/**/mechanism_analysis/trajectories/
+results/**/transition_selector_analysis/cache/
 results/**/run.log
 results/**/commands.log
 results/**/launcher.log
