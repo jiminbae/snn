@@ -15,8 +15,10 @@ results/*smoke*/
 results/**/best_checkpoint.pt
 results/**/split_indices.pt
 results/**/prefix_trajectories.pt
+results/**/trajectories/
 results/**/mechanism_analysis/trajectories/
 results/**/transition_selector_analysis/cache/
+results/**/transition_method_decision/cache/
 results/**/run.log
 results/**/commands.log
 results/**/launcher.log

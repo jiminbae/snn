@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +15,14 @@ from models import build_model
 from utils.data import _build_datasets, get_dataset_spec
 from utils.trajectory_export import build_export_loaders, load_torch_compat, save_split_trajectories
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -21,6 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--include-hidden-features", action="store_true")
     return parser.parse_args()
 
 
@@ -55,13 +65,33 @@ def main() -> None:
         temporal_prefix_steps=config.get("temporal_prefix_steps", 0),
         temporal_prefix_mode=config.get("temporal_prefix_mode", "none"),
     )
+    c1 = int(model.backbone.conv1.out_channels)
+    c2 = int(model.backbone.conv2.out_channels)
+    hidden_feature_metadata = {
+        "format_version": 1,
+        "representation": "channelwise_spatial_mean",
+        "uses_target": False,
+        "causal": True,
+        "dimension": 2 * c1 + 2 * c2,
+        "groups": [
+            {"name": "u1_mean", "start": 0, "stop": c1},
+            {"name": "s1_mean", "start": c1, "stop": 2 * c1},
+            {"name": "u2_mean", "start": 2 * c1, "stop": 2 * c1 + c2},
+            {"name": "s2_mean", "start": 2 * c1 + c2, "stop": 2 * c1 + 2 * c2},
+        ],
+    }
+    fingerprints = {name: sha256_file(run_dir / name) for name in required}
     metadata = {"dataset": config["dataset"], "model": config["model"], "tmax": config["tmax"],
                 "num_classes": int(get_dataset_spec(config["dataset"])["num_classes"]),
                 "checkpoint_epoch": checkpoint["epoch"], "split_seed": split_indices["split_seed"],
-                "backbone_seed": config.get("seed", 0)}
+                "backbone_seed": config.get("seed", 0), "method": run_dir.parent.name,
+                "source_fingerprints": fingerprints,
+                "hidden_feature_metadata": hidden_feature_metadata,
+                "hidden_features_included": args.include_hidden_features}
     result = save_split_trajectories(model, loaders, indices, run_dir / "trajectories", device=device,
                                      forward_args=forward_args, metadata=metadata,
-                                     expected_test_accuracy=summary["test_accuracy"])
+                                     expected_test_accuracy=summary["test_accuracy"],
+                                     include_hidden_features=args.include_hidden_features)
     print(json.dumps(result, indent=2))
 
 

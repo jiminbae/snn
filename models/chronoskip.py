@@ -70,6 +70,7 @@ class FixedLIFSNN(nn.Module):
         temporal_prefix_steps: int = 0,
         temporal_prefix_mode: str = "none",
         return_prefix_logits: bool = False,
+        return_temporal_features: bool = False,
         **_: object,
     ) -> dict[str, Tensor | dict[str, Tensor]]:
         _validate_input(x, self.tmax)
@@ -96,6 +97,7 @@ class FixedLIFSNN(nn.Module):
 
         logits_sum = x.new_zeros((x.shape[0], self.backbone.num_classes))
         prefix_logits_list: list[Tensor] = []
+        temporal_feature_list: list[Tensor] = []
         spike_costs: list[Tensor] = []
 
         for t in range(steps_to_run):
@@ -123,6 +125,18 @@ class FixedLIFSNN(nn.Module):
             logits_sum = logits_sum + self.backbone.classify(s2)
             if return_prefix_logits:
                 prefix_logits_list.append(logits_sum / float(t + 1))
+            if return_temporal_features:
+                temporal_feature_list.append(
+                    torch.cat(
+                        [
+                            u1.mean(dim=(-2, -1)),
+                            s1.mean(dim=(-2, -1)),
+                            u2.mean(dim=(-2, -1)),
+                            s2.mean(dim=(-2, -1)),
+                        ],
+                        dim=1,
+                    )
+                )
             spike_costs.extend([s1.mean(), s2.mean()])
             s1_prev, s2_prev = s1, s2
 
@@ -152,6 +166,8 @@ class FixedLIFSNN(nn.Module):
         }
         if return_prefix_logits:
             output["prefix_logits"] = torch.stack(prefix_logits_list, dim=1)
+        if return_temporal_features:
+            output["temporal_features"] = torch.stack(temporal_feature_list, dim=1)
         return output
 
 

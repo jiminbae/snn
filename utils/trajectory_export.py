@@ -31,21 +31,32 @@ def export_trajectory_payload(
     device: torch.device,
     forward_args: Any,
     metadata: dict[str, Any],
+    include_hidden_features: bool = False,
 ) -> dict[str, Any]:
     model.eval()
-    all_logits, all_targets = [], []
+    all_logits, all_targets, all_hidden = [], [], []
     for images, targets in loader:
         output = model(
             images.to(device), mode="soft", gate_threshold=forward_args.gate_threshold,
             min_prefix_steps=forward_args.min_prefix_steps,
             temporal_prefix_steps=forward_args.temporal_prefix_steps,
             temporal_prefix_mode=forward_args.temporal_prefix_mode, return_prefix_logits=True,
+            **(
+                {"return_temporal_features": True} if include_hidden_features else {}
+            ),
         )
         logits, final_logits = output["prefix_logits"], output["logits"]
         if not torch.allclose(final_logits, logits[:, -1], atol=1e-6):
             raise RuntimeError("Final logits do not match the last prefix logits.")
         all_logits.append(logits.detach().cpu().float())
         all_targets.append(targets.detach().cpu().long())
+        if include_hidden_features:
+            hidden = output.get("temporal_features")
+            if not isinstance(hidden, Tensor) or hidden.ndim != 3 or hidden.shape[:2] != logits.shape[:2]:
+                raise RuntimeError("Model did not return aligned [B,T,H] temporal_features.")
+            if not torch.isfinite(hidden).all():
+                raise RuntimeError("temporal_features contain NaN or Inf.")
+            all_hidden.append(hidden.detach().cpu().float())
     if not all_logits:
         raise RuntimeError(f"No samples were exported for split '{split}'.")
     logits = torch.cat(all_logits)
@@ -61,6 +72,15 @@ def export_trajectory_payload(
         "correct": predictions.eq(targets[:, None]), "sample_indices": sample_indices.cpu().long(),
         "metadata": metadata,
     }
+    if include_hidden_features:
+        hidden_features = torch.cat(all_hidden)
+        if hidden_features.shape[:2] != logits.shape[:2]:
+            raise RuntimeError("Exported hidden features do not align with prefix logits.")
+        payload["hidden_features"] = hidden_features
+        payload["hidden_feature_metadata"] = metadata.get("hidden_feature_metadata", {
+            "format_version": 1, "uses_target": False, "causal": True,
+            "dimension": int(hidden_features.shape[-1]),
+        })
     n, _, _ = validate_trajectory_payload(payload)
     if payload["sample_indices"].shape != (n,):
         raise ValueError("sample_indices must match exported sample count.")
@@ -97,6 +117,7 @@ def save_split_trajectories(
     forward_args: Any,
     metadata: dict[str, Any],
     expected_test_accuracy: float | None = None,
+    include_hidden_features: bool = False,
 ) -> dict[str, Any]:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -104,7 +125,8 @@ def save_split_trajectories(
     payloads: dict[str, dict[str, Any]] = {}
     for split in ("train", "val", "test"):
         payload = export_trajectory_payload(model, loaders[split], indices[split], split=split,
-                                            device=device, forward_args=forward_args, metadata=metadata)
+                                            device=device, forward_args=forward_args, metadata=metadata,
+                                            include_hidden_features=include_hidden_features)
         payloads[split] = payload
         accuracy = payload["correct"][:, -1].float().mean().item() * 100.0
         summary["splits"][split] = {"samples": len(payload["targets"]), "final_accuracy": accuracy}
